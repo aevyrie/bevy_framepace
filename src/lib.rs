@@ -32,7 +32,7 @@ impl Default for FramepacePlugin {
         Self {
             enabled: true,
             framerate_limit: FramerateLimit::Auto,
-            safety_margin: Duration::from_micros(500),
+            safety_margin: Duration::from_micros(4000),
         }
     }
 }
@@ -69,6 +69,9 @@ fn measure_refresh_rate(
     windows: Res<Windows>,
     mut meas_limit: ResMut<MeasuredFramerateLimit>,
 ) {
+    if !winit.is_changed() {
+        return;
+    }
     match settings.framerate_limit {
         FramerateLimit::Auto => {
             let measurement = winit
@@ -138,7 +141,14 @@ fn framerate_exact_limiter(
         spin_sleep::sleep(sleep_needed_safe);
     }
     if sleep_needed.is_zero() {
-        warn!("Frame dropped. Frametime: {:?}", this_frametime);
+        warn!(
+            "Frame dropped. Frametime: +{:<8} {:<10?}",
+            format!(
+                "{}ms",
+                (this_frametime - target_frametime).as_micros() as f32 / 1000.0
+            ),
+            this_frametime,
+        );
     }
     timer.render_start = Instant::now();
     timer.exact_sleep = timer.render_start.duration_since(system_start);
