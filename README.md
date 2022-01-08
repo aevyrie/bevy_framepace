@@ -1,4 +1,4 @@
-# bevy_framepace
+# bevy_framepace 🚗
 
 ### Framepacing and framelimiting for bevy
 
