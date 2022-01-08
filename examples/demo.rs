@@ -1,7 +1,4 @@
-use bevy::{
-    diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
-    prelude::*,
-};
+use bevy::prelude::*;
 use bevy_mod_picking::{
     DebugCursorPickingPlugin, DebugEventsPickingPlugin, DefaultPickingPlugins, PickableBundle,
     PickingCameraBundle,
@@ -16,14 +13,11 @@ fn main() {
     .add_plugins(DefaultPlugins)
     // Add the framepacing plugin.
     .add_plugin(bevy_framepace::FramepacePlugin::default())
-    // Picking, diagnostics, and scene setup
+    // Picking and scene setup
     .add_plugin(DefaultPickingPlugins)
     .add_plugin(DebugCursorPickingPlugin)
     .add_plugin(DebugEventsPickingPlugin)
-    .add_plugin(LogDiagnosticsPlugin::default())
-    .add_plugin(FrameTimeDiagnosticsPlugin::default())
     .add_startup_system(setup);
-
     app.run();
 }
 
