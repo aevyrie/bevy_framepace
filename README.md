@@ -9,7 +9,7 @@ app.add_plugin(bevy_framepace::FramepacePlugin::default())
 ```
 
 You can adjust the framerate limit and framepacing forward estimation safety margin when adding the
-plugin, or at runtime by modifying the `FramepaceSettings` resource.
+plugin, or at runtime by modifying the `FramepacePlugin` resource.
 
 See `demo.rs` in the examples folder, or run with:
 ```console
