@@ -32,7 +32,7 @@ impl Default for FramepacePlugin {
         Self {
             enabled: true,
             framerate_limit: FramerateLimit::Auto,
-            safety_margin: Duration::from_micros(4000),
+            safety_margin: Duration::from_micros(500),
         }
     }
 }
