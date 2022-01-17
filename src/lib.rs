@@ -32,7 +32,15 @@ impl Default for FramepacePlugin {
         Self {
             enabled: true,
             framerate_limit: FramerateLimit::Auto,
-            safety_margin: Duration::from_micros(500),
+            safety_margin: Duration::from_micros(50),
+        }
+    }
+}
+impl FramepacePlugin {
+    pub fn framerate(fps: u64) -> Self {
+        Self {
+            framerate_limit: FramerateLimit::Manual(fps),
+            ..Default::default()
         }
     }
 }
@@ -69,7 +77,7 @@ fn measure_refresh_rate(
     windows: Res<Windows>,
     mut meas_limit: ResMut<MeasuredFramerateLimit>,
 ) {
-    if !winit.is_changed() {
+    if !windows.is_changed() && !settings.is_changed() && !winit.is_changed() {
         return;
     }
     match settings.framerate_limit {
