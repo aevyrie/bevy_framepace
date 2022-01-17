@@ -74,18 +74,18 @@ fn measure_refresh_rate(
     }
     match settings.framerate_limit {
         FramerateLimit::Auto => {
-            let measurement = winit
+            let modes = winit
                 .get_window(windows.get_primary().unwrap().id())
                 .unwrap()
                 .current_monitor()
                 .unwrap()
-                .video_modes()
-                .last()
-                .unwrap()
-                .refresh_rate() as u64;
-            if measurement != meas_limit.0 {
-                info!("Detected refresh rate is: {} fps", measurement);
-                *meas_limit = MeasuredFramerateLimit(measurement);
+                .video_modes();
+            let best = modes.map(|f| f.refresh_rate() as u64).max();
+            if let Some(framerate) = best {
+                if framerate != meas_limit.0 {
+                    info!("Detected refresh rate is: {} fps", framerate);
+                    *meas_limit = MeasuredFramerateLimit(framerate);
+                }
             }
         }
         FramerateLimit::Manual(fps) => {
