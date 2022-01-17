@@ -7,13 +7,16 @@ resolver = "2"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bevy = { git = "https://github.com/bevyengine/bevy", branch = "main", default-features = false }
+#bevy = { git = "https://github.com/bevyengine/bevy", branch = "main", default-features = false }
+bevy = { version = "0.6", default-features = false }
 spin_sleep = "1.0"
 
 [dev-dependencies]
-bevy = { git = "https://github.com/bevyengine/bevy", branch = "main", default-features = false, features = [
+#bevy = { git = "https://github.com/bevyengine/bevy", branch = "main", default-features = false, features = [
+bevy = { version = "0.6", default-features = false, features = [
     "render",
     "bevy_winit",
     "x11",
 ] }
-bevy_mod_picking = { git = "https://github.com/aevyrie/bevy_mod_picking" }
+#bevy_mod_picking = { git = "https://github.com/aevyrie/bevy_mod_picking" }
+bevy_mod_picking = "0.5"
