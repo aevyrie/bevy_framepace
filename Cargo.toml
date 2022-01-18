@@ -3,6 +3,8 @@ name = "bevy_framepace"
 version = "0.1.0"
 edition = "2021"
 resolver = "2"
+description = "Frame pacing and frame limiting for Bevy"
+license = "MIT OR Apache-2.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
