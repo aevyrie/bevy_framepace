@@ -25,3 +25,14 @@ The plugin works by recording how long it takes to render each frame, it then us
 A second system then runs right before the frame is presented to the gpu, and sleeps until the desired frametime limit has been reached (red annotation above). This makes up for any error in forward estimation, and ensures frame time is exactly correct.
 
 The `spin_sleep` dependency is needed for precise sleep times. The sleep function in the standard library is not accurate enough for this application, especially on Windows.
+
+## License
+
+Bevy_framepace is free and open source! All code in this repository is dual-licensed under either:
+
+* MIT License (LICENSE-MIT or http://opensource.org/licenses/MIT)
+* Apache License, Version 2.0 (LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0)
+
+at your option. This means you can select the license you prefer! This dual-licensing approach is the de-facto standard in the Rust ecosystem and there are very good reasons to include both.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
