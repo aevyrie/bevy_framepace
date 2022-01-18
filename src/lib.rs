@@ -7,13 +7,13 @@ use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, Component)]
 pub struct FramepacePlugin {
-    enabled: bool,
-    framerate_limit: FramerateLimit,
+    pub enabled: bool,
+    pub framerate_limit: FramerateLimit,
     /// How early should we cut the sleep time by, to make sure we have enough time to render our
     /// frame if it takes longer than expected? Increasing this number makes dropped frames less
     /// likely, but increases motion-to-photon latency of user input rendered to screen. Use
     /// `FramepacePlugin::default()` as a starting point.
-    safety_margin: Duration,
+    pub safety_margin: Duration,
 }
 impl Plugin for FramepacePlugin {
     fn build(&self, app: &mut App) {
