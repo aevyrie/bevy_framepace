@@ -32,7 +32,7 @@ impl Default for FramepacePlugin {
         Self {
             enabled: true,
             framerate_limit: FramerateLimit::Auto,
-            safety_margin: Duration::from_micros(50),
+            safety_margin: Duration::from_micros(500),
         }
     }
 }
@@ -80,7 +80,7 @@ fn measure_refresh_rate(
     if !windows.is_changed() && !settings.is_changed() && !winit.is_changed() {
         return;
     }
-    match settings.framerate_limit {
+    let update = match settings.framerate_limit {
         FramerateLimit::Auto => {
             let modes = winit
                 .get_window(windows.get_primary().unwrap().id())
@@ -91,17 +91,25 @@ fn measure_refresh_rate(
             let best = modes.map(|f| f.refresh_rate() as u64).max();
             if let Some(framerate) = best {
                 if framerate != meas_limit.0 {
-                    info!("Detected refresh rate is: {} fps", framerate);
-                    *meas_limit = MeasuredFramerateLimit(framerate);
+                    Some(framerate)
+                } else {
+                    None
                 }
+            } else {
+                None
             }
         }
-        FramerateLimit::Manual(fps) => {
-            if fps != meas_limit.0 {
-                info!("Detected refresh rate is: {} fps", fps);
-                *meas_limit = MeasuredFramerateLimit(fps);
+        FramerateLimit::Manual(framerate) => {
+            if framerate != meas_limit.0 {
+                Some(framerate)
+            } else {
+                None
             }
         }
+    };
+    if let Some(fps) = update {
+        *meas_limit = MeasuredFramerateLimit(fps);
+        info!("Detected refresh rate is: {} fps", fps);
     }
 }
 
@@ -144,18 +152,18 @@ fn framerate_exact_limiter(
     let this_frametime = system_start.duration_since(timer.render_start);
     let sleep_needed = target_frametime - target_frametime.min(this_frametime);
     let sleep_needed_safe =
-        sleep_needed.max(Duration::from_micros(200)) - Duration::from_micros(200);
+        sleep_needed.max(Duration::from_micros(500)) - Duration::from_micros(500);
     if settings.enabled {
         spin_sleep::sleep(sleep_needed_safe);
     }
     if sleep_needed.is_zero() {
         warn!(
-            "Frame dropped. Frametime: +{:<8} {:<10?}",
+            "Frame dropped. Frametime: {:.2?} (+{})",
+            this_frametime,
             format!(
-                "{}ms",
+                "{:.2}ms",
                 (this_frametime - target_frametime).as_micros() as f32 / 1000.0
             ),
-            this_frametime,
         );
     }
     timer.render_start = Instant::now();
