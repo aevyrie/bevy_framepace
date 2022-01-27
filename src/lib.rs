@@ -3,12 +3,14 @@ use bevy::{
     render::{RenderApp, RenderStage, RenderWorld},
     winit::WinitWindows,
 };
+use ringbuffer::{RingBufferExt, RingBufferWrite};
 use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, Component)]
 pub struct FramepacePlugin {
     pub enabled: bool,
     pub framerate_limit: FramerateLimit,
+    pub warn_on_frame_drop: bool,
     /// How early should we cut the sleep time by, to make sure we have enough time to render our
     /// frame if it takes longer than expected? Increasing this number makes dropped frames less
     /// likely, but increases motion-to-photon latency of user input rendered to screen. Use
@@ -32,7 +34,8 @@ impl Default for FramepacePlugin {
         Self {
             enabled: true,
             framerate_limit: FramerateLimit::Auto,
-            safety_margin: Duration::from_micros(500),
+            warn_on_frame_drop: true,
+            safety_margin: Duration::from_micros(50),
         }
     }
 }
@@ -42,6 +45,10 @@ impl FramepacePlugin {
             framerate_limit: FramerateLimit::Manual(fps),
             ..Default::default()
         }
+    }
+    pub fn without_warnings(mut self) -> Self {
+        self.warn_on_frame_drop = false;
+        self
     }
 }
 
@@ -55,8 +62,11 @@ pub enum FramerateLimit {
 #[derive(Debug, Clone, Component)]
 pub struct MeasuredFramerateLimit(u64);
 
+const FRAMETIME_SAMPLES: usize = 32;
+
 #[derive(Debug)]
 struct FrameTimer {
+    frame_time_history: ringbuffer::ConstGenericRingBuffer<Duration, FRAMETIME_SAMPLES>,
     post_render_start: Instant,
     render_start: Instant,
     exact_sleep: Duration,
@@ -64,6 +74,7 @@ struct FrameTimer {
 impl Default for FrameTimer {
     fn default() -> Self {
         FrameTimer {
+            frame_time_history: Default::default(),
             post_render_start: Instant::now(),
             render_start: Instant::now(),
             exact_sleep: Duration::from_millis(0),
@@ -77,7 +88,7 @@ fn measure_refresh_rate(
     windows: Res<Windows>,
     mut meas_limit: ResMut<MeasuredFramerateLimit>,
 ) {
-    if !windows.is_changed() && !settings.is_changed() && !winit.is_changed() {
+    if !settings.is_changed() && !winit.is_changed() {
         return;
     }
     let update = match settings.framerate_limit {
@@ -132,7 +143,14 @@ fn framerate_limit_forward_estimator(
     let render_end = Instant::now();
     let target_frametime = Duration::from_micros(1_000_000 / framerate_limit);
     let last_frametime = render_end.duration_since(timer.post_render_start);
-    let last_render_time = last_frametime - timer.exact_sleep;
+    timer.frame_time_history.push(last_frametime);
+    let max_frametime = timer
+        .frame_time_history
+        .iter()
+        .max()
+        .cloned()
+        .unwrap_or_else(|| Duration::from_millis(100));
+    let last_render_time = max_frametime - timer.exact_sleep;
     let estimated_cpu_time_needed = last_render_time + settings.safety_margin;
     let estimated_sleep_time = target_frametime - target_frametime.min(estimated_cpu_time_needed);
     if settings.enabled {
@@ -150,13 +168,7 @@ fn framerate_exact_limiter(
     let system_start = Instant::now();
     let target_frametime = Duration::from_micros(1_000_000 / framerate_limit);
     let this_frametime = system_start.duration_since(timer.render_start);
-    let sleep_needed = target_frametime - target_frametime.min(this_frametime);
-    let sleep_needed_safe =
-        sleep_needed.max(Duration::from_micros(500)) - Duration::from_micros(500);
-    if settings.enabled {
-        spin_sleep::sleep(sleep_needed_safe);
-    }
-    if sleep_needed.is_zero() {
+    if this_frametime > target_frametime && settings.warn_on_frame_drop {
         warn!(
             "Frame dropped. Frametime: {:.2?} (+{})",
             this_frametime,
@@ -165,6 +177,11 @@ fn framerate_exact_limiter(
                 (this_frametime - target_frametime).as_micros() as f32 / 1000.0
             ),
         );
+    }
+    //let sleep_needed = target_frametime - target_frametime.min(this_frametime);
+    //let sleep_needed = sleep_needed - sleep_needed.min(settings.safety_margin);
+    if settings.enabled {
+        //spin_sleep::sleep(sleep_needed);
     }
     timer.render_start = Instant::now();
     timer.exact_sleep = timer.render_start.duration_since(system_start);
