@@ -1,4 +1,4 @@
-# bevy_framepace ⏲️
+# bevy_framepace⏱️
 
 [![crates.io](https://img.shields.io/crates/v/bevy_framepace)](https://crates.io/crates/bevy_framepace)
 [![docs.rs](https://docs.rs/bevy_framepace/badge.svg)](https://docs.rs/bevy_framepace)
