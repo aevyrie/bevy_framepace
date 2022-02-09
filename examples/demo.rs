@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, window::PresentMode};
 use bevy_mod_picking::{
     DebugCursorPickingPlugin, DefaultPickingPlugins, PickableBundle, PickingCameraBundle,
 };
@@ -6,12 +6,17 @@ use bevy_mod_picking::{
 fn main() {
     let mut app = App::new();
     app.insert_resource(WindowDescriptor {
-        vsync: false,
+        present_mode: PresentMode::Immediate,
         ..Default::default()
     })
     .add_plugins(DefaultPlugins)
     // Add the framepacing plugin.
-    .add_plugin(bevy_framepace::FramepacePlugin::default())
+    .add_plugin(bevy_framepace::FramepacePlugin {
+        enabled: true,
+        framerate_limit: bevy_framepace::FramerateLimit::Auto,
+        warn_on_frame_drop: true,
+        safety_margin: std::time::Duration::from_millis(2),
+    })
     // Picking and scene setup
     .add_plugins(DefaultPickingPlugins)
     .add_plugin(DebugCursorPickingPlugin)
@@ -32,26 +37,18 @@ fn setup(
             ..Default::default()
         })
         .insert_bundle(PickableBundle::default());
-    commands
-        .spawn_bundle(PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-            material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
-            transform: Transform::from_xyz(0.0, 0.5, 0.0),
-            ..Default::default()
-        })
-        .insert_bundle(PickableBundle::default());
     commands.spawn_bundle(PointLightBundle {
         point_light: PointLight {
             intensity: 1500.0,
             shadows_enabled: true,
             ..Default::default()
         },
-        transform: Transform::from_xyz(4.0, 8.0, 4.0),
+        transform: Transform::from_xyz(1.0, 5.0, 0.0),
         ..Default::default()
     });
     commands
         .spawn_bundle(PerspectiveCameraBundle {
-            transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
+            transform: Transform::from_xyz(1.0, 5.0, 0.0).looking_at(Vec3::ZERO, Vec3::Y),
             ..Default::default()
         })
         .insert_bundle(PickingCameraBundle::default());
