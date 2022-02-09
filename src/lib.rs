@@ -3,7 +3,7 @@ use bevy::{
     render::{RenderApp, RenderStage, RenderWorld},
     winit::WinitWindows,
 };
-use ringbuffer::{RingBufferExt, RingBufferWrite};
+use ringbuffer::{ConstGenericRingBuffer, RingBufferExt, RingBufferWrite};
 use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, Component)]
@@ -35,7 +35,7 @@ impl Default for FramepacePlugin {
             enabled: true,
             framerate_limit: FramerateLimit::Auto,
             warn_on_frame_drop: true,
-            safety_margin: Duration::from_micros(50),
+            safety_margin: Duration::from_micros(200),
         }
     }
 }
@@ -66,18 +66,20 @@ const FRAMETIME_SAMPLES: usize = 32;
 
 #[derive(Debug)]
 struct FrameTimer {
-    frame_time_history: ringbuffer::ConstGenericRingBuffer<Duration, FRAMETIME_SAMPLES>,
+    frame_time_history: ConstGenericRingBuffer<Duration, FRAMETIME_SAMPLES>,
     post_render_start: Instant,
     render_start: Instant,
     exact_sleep: Duration,
 }
 impl Default for FrameTimer {
     fn default() -> Self {
+        let mut frame_time_history = ConstGenericRingBuffer::default();
+        frame_time_history.fill(Duration::from_millis(1));
         FrameTimer {
-            frame_time_history: Default::default(),
+            frame_time_history,
             post_render_start: Instant::now(),
             render_start: Instant::now(),
-            exact_sleep: Duration::from_millis(0),
+            exact_sleep: Duration::ZERO,
         }
     }
 }
@@ -144,13 +146,15 @@ fn framerate_limit_forward_estimator(
     let target_frametime = Duration::from_micros(1_000_000 / framerate_limit);
     let last_frametime = render_end.duration_since(timer.post_render_start);
     timer.frame_time_history.push(last_frametime);
+    // let avg_frametime =
+    //     timer.frame_time_history.iter().sum::<Duration>() / FRAMETIME_SAMPLES as u32;
     let max_frametime = timer
         .frame_time_history
         .iter()
         .max()
         .cloned()
         .unwrap_or_else(|| Duration::from_millis(100));
-    let last_render_time = max_frametime - timer.exact_sleep;
+    let last_render_time = max_frametime - max_frametime.min(timer.exact_sleep);
     let estimated_cpu_time_needed = last_render_time + settings.safety_margin;
     let estimated_sleep_time = target_frametime - target_frametime.min(estimated_cpu_time_needed);
     if settings.enabled {
