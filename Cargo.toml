@@ -20,4 +20,4 @@ spin_sleep = "1.0"
 ringbuffer = "0.8"
 
 [dev-dependencies]
-bevy_mod_picking = { git = "https://github.com/aevyrie/bevy_mod_picking" }
+bevy_mod_picking = { git = "https://github.com/aevyrie/bevy_mod_picking", branch = "main" }
