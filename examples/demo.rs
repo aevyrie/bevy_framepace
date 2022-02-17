@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use bevy::{prelude::*, window::PresentMode};
+use bevy::prelude::*; //, window::PresentMode};
 use bevy_framepace::PowerSaver;
 use bevy_mod_picking::{
     DebugCursorPickingPlugin, DefaultPickingPlugins, PickableBundle, PickingCameraBundle,
@@ -9,7 +9,7 @@ use bevy_mod_picking::{
 fn main() {
     let mut app = App::new();
     app.insert_resource(WindowDescriptor {
-        present_mode: PresentMode::Immediate,
+        //present_mode: PresentMode::Immediate,
         ..Default::default()
     })
     .add_plugins(DefaultPlugins)
