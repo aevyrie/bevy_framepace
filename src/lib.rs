@@ -16,6 +16,7 @@ pub struct FramepacePlugin {
     /// likely, but increases motion-to-photon latency of user input rendered to screen. Use
     /// `FramepacePlugin::default()` as a starting point.
     pub safety_margin: Duration,
+    pub power_saver: PowerSaver,
 }
 impl Plugin for FramepacePlugin {
     fn build(&self, app: &mut App) {
@@ -36,11 +37,12 @@ impl Default for FramepacePlugin {
             framerate_limit: FramerateLimit::Auto,
             warn_on_frame_drop: true,
             safety_margin: Duration::from_micros(200),
+            power_saver: PowerSaver::Enabled(Duration::from_millis(500)),
         }
     }
 }
 impl FramepacePlugin {
-    pub fn framerate(fps: u64) -> Self {
+    pub fn framerate(fps: u16) -> Self {
         Self {
             framerate_limit: FramerateLimit::Manual(fps),
             ..Default::default()
@@ -57,10 +59,20 @@ pub enum FramerateLimit {
     /// Uses the window's refresh rate to set the framerate limit
     Auto,
     /// Set a manual framerate limit. Note this should be <= to the window's refresh rate.
-    Manual(u64),
+    Manual(u16),
 }
+
+#[derive(Debug, Clone)]
+pub enum PowerSaver {
+    // Disable all power saving features
+    Disabled,
+    /// Sleep the application when it does not have focus, set with the desired frametime, i.e.
+    /// seconds per frame.
+    Enabled(Duration),
+}
+
 #[derive(Debug, Clone, Component)]
-pub struct MeasuredFramerateLimit(u64);
+pub struct MeasuredFramerateLimit(u16);
 
 const FRAMETIME_SAMPLES: usize = 32;
 
@@ -90,6 +102,12 @@ fn measure_refresh_rate(
     windows: Res<Windows>,
     mut meas_limit: ResMut<MeasuredFramerateLimit>,
 ) {
+    if let PowerSaver::Enabled(t) = settings.power_saver {
+        let window = windows.get_primary().unwrap();
+        if !window.is_focused() {
+            std::thread::sleep(t);
+        }
+    }
     if !settings.is_changed() && !winit.is_changed() {
         return;
     }
@@ -101,7 +119,7 @@ fn measure_refresh_rate(
                 .current_monitor()
                 .unwrap()
                 .video_modes();
-            let best = modes.map(|f| f.refresh_rate() as u64).max();
+            let best = modes.map(|f| f.refresh_rate() as u16).max();
             if let Some(framerate) = best {
                 if framerate != meas_limit.0 {
                     Some(framerate)
@@ -143,7 +161,7 @@ fn framerate_limit_forward_estimator(
 ) {
     let framerate_limit = refresh_rate.0;
     let render_end = Instant::now();
-    let target_frametime = Duration::from_micros(1_000_000 / framerate_limit);
+    let target_frametime = Duration::from_micros(1_000_000 / framerate_limit as u64);
     let last_frametime = render_end.duration_since(timer.post_render_start);
     timer.frame_time_history.push(last_frametime);
     // let avg_frametime =
@@ -170,7 +188,7 @@ fn framerate_exact_limiter(
 ) {
     let framerate_limit = refresh_rate.0;
     let system_start = Instant::now();
-    let target_frametime = Duration::from_micros(1_000_000 / framerate_limit);
+    let target_frametime = Duration::from_micros(1_000_000 / framerate_limit as u64);
     let this_frametime = system_start.duration_since(timer.render_start);
     if this_frametime > target_frametime && settings.warn_on_frame_drop {
         warn!(

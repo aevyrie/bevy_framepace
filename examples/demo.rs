@@ -1,4 +1,7 @@
+use std::time::Duration;
+
 use bevy::{prelude::*, window::PresentMode};
+use bevy_framepace::PowerSaver;
 use bevy_mod_picking::{
     DebugCursorPickingPlugin, DefaultPickingPlugins, PickableBundle, PickingCameraBundle,
 };
@@ -16,6 +19,7 @@ fn main() {
         framerate_limit: bevy_framepace::FramerateLimit::Auto,
         warn_on_frame_drop: true,
         safety_margin: std::time::Duration::from_millis(2),
+        power_saver: PowerSaver::Enabled(Duration::from_millis(500)),
     })
     // Picking and scene setup
     .add_plugins(DefaultPickingPlugins)
