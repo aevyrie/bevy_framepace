@@ -74,7 +74,7 @@ pub enum PowerSaver {
 #[derive(Debug, Clone, Component)]
 pub struct MeasuredFramerateLimit(u16);
 
-const FRAMETIME_SAMPLES: usize = 32;
+const FRAMETIME_SAMPLES: usize = 64;
 
 #[derive(Debug)]
 struct FrameTimer {
@@ -85,10 +85,8 @@ struct FrameTimer {
 }
 impl Default for FrameTimer {
     fn default() -> Self {
-        let mut frame_time_history = ConstGenericRingBuffer::default();
-        frame_time_history.fill(Duration::from_millis(1));
         FrameTimer {
-            frame_time_history,
+            frame_time_history: ConstGenericRingBuffer::default(),
             post_render_start: Instant::now(),
             render_start: Instant::now(),
             exact_sleep: Duration::ZERO,
@@ -113,19 +111,14 @@ fn measure_refresh_rate(
     }
     let update = match settings.framerate_limit {
         FramerateLimit::Auto => {
-            let modes = winit
+            let monitor = winit
                 .get_window(windows.get_primary().unwrap().id())
                 .unwrap()
                 .current_monitor()
-                .unwrap()
-                .video_modes();
-            let best = modes.map(|f| f.refresh_rate() as u16).max();
-            if let Some(framerate) = best {
-                if framerate != meas_limit.0 {
-                    Some(framerate)
-                } else {
-                    None
-                }
+                .unwrap();
+            let best_framerate = bevy::winit::get_best_videomode(&monitor).refresh_rate();
+            if best_framerate != meas_limit.0 {
+                Some(best_framerate)
             } else {
                 None
             }
@@ -163,18 +156,21 @@ fn framerate_limit_forward_estimator(
     let render_end = Instant::now();
     let target_frametime = Duration::from_micros(1_000_000 / framerate_limit as u64);
     let last_frametime = render_end.duration_since(timer.post_render_start);
-    timer.frame_time_history.push(last_frametime);
-    // let avg_frametime =
-    //     timer.frame_time_history.iter().sum::<Duration>() / FRAMETIME_SAMPLES as u32;
-    let max_frametime = timer
+    let last_render_time = last_frametime - timer.exact_sleep.min(last_frametime);
+    timer.frame_time_history.push(last_render_time);
+
+    let mu = timer.frame_time_history.iter().sum::<Duration>() / FRAMETIME_SAMPLES as u32;
+    let sum_squares: f32 = timer
         .frame_time_history
         .iter()
-        .max()
-        .cloned()
-        .unwrap_or_else(|| Duration::from_millis(100));
-    let last_render_time = max_frametime - max_frametime.min(timer.exact_sleep);
-    let estimated_cpu_time_needed = last_render_time + settings.safety_margin;
-    let estimated_sleep_time = target_frametime - target_frametime.min(estimated_cpu_time_needed);
+        .map(|x| (x.as_secs_f32() - mu.as_secs_f32()).powi(2))
+        .sum();
+    let sigma = f32::sqrt(sum_squares / FRAMETIME_SAMPLES as f32);
+    let upper_cpu_time = mu.as_secs_f32() + 3.0 * sigma;
+
+    let estimated_cpu_time_needed =
+        Duration::from_secs_f32(upper_cpu_time) + settings.safety_margin;
+    let estimated_sleep_time = target_frametime - estimated_cpu_time_needed.min(target_frametime);
     if settings.enabled {
         spin_sleep::sleep(estimated_sleep_time);
     }
@@ -200,10 +196,10 @@ fn framerate_exact_limiter(
             ),
         );
     }
-    //let sleep_needed = target_frametime - target_frametime.min(this_frametime);
-    //let sleep_needed = sleep_needed - sleep_needed.min(settings.safety_margin);
+    let sleep_needed = target_frametime - target_frametime.min(this_frametime);
+    let sleep_needed = sleep_needed - sleep_needed.min(settings.safety_margin);
     if settings.enabled {
-        //spin_sleep::sleep(sleep_needed);
+        spin_sleep::sleep(sleep_needed);
     }
     timer.render_start = Instant::now();
     timer.exact_sleep = timer.render_start.duration_since(system_start);
