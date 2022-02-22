@@ -12,12 +12,14 @@ documentation = "https://docs.rs/bevy_framepace"
 
 [dependencies]
 bevy = { git = "https://github.com/bevyengine/bevy", branch = "main", default-features = false, features = [
-    "render",
     "bevy_winit",
-    "x11",
+    "render",
 ] }
 spin_sleep = "1.0"
 ringbuffer = "0.8"
 
 [dev-dependencies]
+bevy = { git = "https://github.com/bevyengine/bevy", branch = "main", default-features = false, features = [
+    "x11",
+] }
 bevy_mod_picking = { git = "https://github.com/aevyrie/bevy_mod_picking", branch = "main" }
