@@ -14,7 +14,7 @@ documentation = "https://docs.rs/bevy_framepace"
 bevy = { git = "https://github.com/bevyengine/bevy", branch = "main", default-features = false, features = [
     "bevy_winit",
     "render",
-    "x11"
+    "x11",
 ] }
 spin_sleep = "1.0"
 ringbuffer = "0.8"

@@ -16,7 +16,6 @@ pub struct FramepacePlugin {
     /// likely, but increases motion-to-photon latency of user input rendered to screen. Use
     /// `FramepacePlugin::default()` as a starting point.
     pub safety_margin: Duration,
-    pub power_saver: PowerSaver,
 }
 impl Plugin for FramepacePlugin {
     fn build(&self, app: &mut App) {
@@ -37,7 +36,6 @@ impl Default for FramepacePlugin {
             framerate_limit: FramerateLimit::Auto,
             warn_on_frame_drop: true,
             safety_margin: Duration::from_micros(200),
-            power_saver: PowerSaver::Enabled(Duration::from_millis(500)),
         }
     }
 }
@@ -62,19 +60,10 @@ pub enum FramerateLimit {
     Manual(u16),
 }
 
-#[derive(Debug, Clone)]
-pub enum PowerSaver {
-    // Disable all power saving features
-    Disabled,
-    /// Sleep the application when it does not have focus, set with the desired frametime, i.e.
-    /// seconds per frame.
-    Enabled(Duration),
-}
-
 #[derive(Debug, Clone, Component)]
 pub struct MeasuredFramerateLimit(u16);
 
-const FRAMETIME_SAMPLES: usize = 64;
+const FRAMETIME_SAMPLES: usize = 128;
 
 #[derive(Debug)]
 struct FrameTimer {
@@ -96,16 +85,10 @@ impl Default for FrameTimer {
 
 fn measure_refresh_rate(
     settings: Res<FramepacePlugin>,
-    winit: Res<WinitWindows>,
+    winit: NonSend<WinitWindows>,
     windows: Res<Windows>,
     mut meas_limit: ResMut<MeasuredFramerateLimit>,
 ) {
-    if let PowerSaver::Enabled(t) = settings.power_saver {
-        let window = windows.get_primary().unwrap();
-        if !window.is_focused() {
-            std::thread::sleep(t);
-        }
-    }
     if !settings.is_changed() && !winit.is_changed() {
         return;
     }
@@ -186,14 +169,15 @@ fn framerate_exact_limiter(
     let system_start = Instant::now();
     let target_frametime = Duration::from_micros(1_000_000 / framerate_limit as u64);
     let this_frametime = system_start.duration_since(timer.render_start);
-    if this_frametime > target_frametime && settings.warn_on_frame_drop {
+    if this_frametime > target_frametime && settings.warn_on_frame_drop && settings.enabled {
         warn!(
-            "Frame dropped. Frametime: {:.2?} (+{})",
+            "Frametime: {:.2?} (+{}), Render: {:.2?}",
             this_frametime,
             format!(
                 "{:.2}ms",
-                (this_frametime - target_frametime).as_micros() as f32 / 1000.0
+                (this_frametime - target_frametime).as_micros() as f32 / 1000.,
             ),
+            timer.frame_time_history.get(-1).unwrap_or(&Duration::ZERO)
         );
     }
     let sleep_needed = target_frametime - target_frametime.min(this_frametime);
