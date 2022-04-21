@@ -4,12 +4,12 @@
 
 **Framepacing and framelimiting for Bevy**
 
-<video src = "https://user-images.githubusercontent.com/2632925/164378172-faa136d5-e78f-4328-9962-afbf410753ce.mp4">
-
 [![crates.io](https://img.shields.io/crates/v/bevy_framepace)](https://crates.io/crates/bevy_framepace)
 [![docs.rs](https://docs.rs/bevy_framepace/badge.svg)](https://docs.rs/bevy_framepace)
 [![CI](https://github.com/aevyrie/bevy_framepace/workflows/CI/badge.svg?branch=main)](https://github.com/aevyrie/bevy_framepace/actions?query=workflow%3A%22CI%22+branch%3Amain)
 [![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-main-lightblue)](https://github.com/bevyengine/bevy/blob/main/docs/plugins_guidelines.md#main-branch-tracking)
+
+<video src = "https://user-images.githubusercontent.com/2632925/164378172-faa136d5-e78f-4328-9962-afbf410753ce.mp4"></video>
 
 </div>
 
