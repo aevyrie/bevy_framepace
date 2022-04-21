@@ -3,19 +3,12 @@ use bevy::{
     render::{RenderApp, RenderStage, RenderWorld},
     winit::WinitWindows,
 };
-use ringbuffer::{ConstGenericRingBuffer, RingBufferExt, RingBufferWrite};
 use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, Component)]
 pub struct FramepacePlugin {
-    pub enabled: bool,
     pub framerate_limit: FramerateLimit,
     pub warn_on_frame_drop: bool,
-    /// How early should we cut the sleep time by, to make sure we have enough time to render our
-    /// frame if it takes longer than expected? Increasing this number makes dropped frames less
-    /// likely, but increases motion-to-photon latency of user input rendered to screen. Use
-    /// `FramepacePlugin::default()` as a starting point.
-    pub safety_margin: Duration,
 }
 impl Plugin for FramepacePlugin {
     fn build(&self, app: &mut App) {
@@ -25,17 +18,14 @@ impl Plugin for FramepacePlugin {
         app.sub_app_mut(RenderApp)
             .insert_resource(FrameTimer::default())
             .add_system_to_stage(RenderStage::Extract, extract_refresh_rate)
-            .add_system_to_stage(RenderStage::Render, framerate_exact_limiter)
-            .add_system_to_stage(RenderStage::Cleanup, framerate_limit_forward_estimator);
+            .add_system_to_stage(RenderStage::Cleanup, framerate_exact_limiter);
     }
 }
 impl Default for FramepacePlugin {
     fn default() -> Self {
         Self {
-            enabled: true,
             framerate_limit: FramerateLimit::Auto,
             warn_on_frame_drop: true,
-            safety_margin: Duration::from_micros(200),
         }
     }
 }
@@ -50,6 +40,15 @@ impl FramepacePlugin {
         self.warn_on_frame_drop = false;
         self
     }
+    pub fn disable(&mut self) {
+        self.framerate_limit = FramerateLimit::Off;
+    }
+    pub fn enable_auto(&mut self) {
+        self.framerate_limit = FramerateLimit::Auto;
+    }
+    pub fn enable_manual(&mut self, framerate: u16) {
+        self.framerate_limit = FramerateLimit::Manual(framerate);
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -58,25 +57,25 @@ pub enum FramerateLimit {
     Auto,
     /// Set a manual framerate limit. Note this should be <= to the window's refresh rate.
     Manual(u16),
+    Off,
+}
+impl FramerateLimit {
+    pub fn is_enabled(&self) -> bool {
+        !matches!(self, FramerateLimit::Off)
+    }
 }
 
 #[derive(Debug, Clone, Component)]
 pub struct MeasuredFramerateLimit(u16);
 
-const FRAMETIME_SAMPLES: usize = 128;
-
 #[derive(Debug)]
 struct FrameTimer {
-    frame_time_history: ConstGenericRingBuffer<Duration, FRAMETIME_SAMPLES>,
-    post_render_start: Instant,
     render_start: Instant,
     exact_sleep: Duration,
 }
 impl Default for FrameTimer {
     fn default() -> Self {
         FrameTimer {
-            frame_time_history: ConstGenericRingBuffer::default(),
-            post_render_start: Instant::now(),
             render_start: Instant::now(),
             exact_sleep: Duration::ZERO,
         }
@@ -101,6 +100,7 @@ fn measure_refresh_rate(
                 .unwrap();
             let best_framerate = bevy::winit::get_best_videomode(&monitor).refresh_rate();
             if best_framerate != meas_limit.0 {
+                info!("Detected refresh rate is: {} fps", best_framerate);
                 Some(best_framerate)
             } else {
                 None
@@ -108,15 +108,19 @@ fn measure_refresh_rate(
         }
         FramerateLimit::Manual(framerate) => {
             if framerate != meas_limit.0 {
+                info!("Manual refresh rate is: {} fps", framerate);
                 Some(framerate)
             } else {
                 None
             }
         }
+        FramerateLimit::Off => {
+            info!("Disabled");
+            None
+        }
     };
     if let Some(fps) = update {
         *meas_limit = MeasuredFramerateLimit(fps);
-        info!("Detected refresh rate is: {} fps", fps);
     }
 }
 
@@ -129,37 +133,6 @@ fn extract_refresh_rate(
     r_world.insert_resource(settings.clone());
 }
 
-/// How long we *think* we should sleep before starting to render the next frame
-fn framerate_limit_forward_estimator(
-    mut timer: ResMut<FrameTimer>,
-    settings: Res<FramepacePlugin>,
-    refresh_rate: Res<MeasuredFramerateLimit>,
-) {
-    let framerate_limit = refresh_rate.0;
-    let render_end = Instant::now();
-    let target_frametime = Duration::from_micros(1_000_000 / framerate_limit as u64);
-    let last_frametime = render_end.duration_since(timer.post_render_start);
-    let last_render_time = last_frametime - timer.exact_sleep.min(last_frametime);
-    timer.frame_time_history.push(last_render_time);
-
-    let mu = timer.frame_time_history.iter().sum::<Duration>() / FRAMETIME_SAMPLES as u32;
-    let sum_squares: f32 = timer
-        .frame_time_history
-        .iter()
-        .map(|x| (x.as_secs_f32() - mu.as_secs_f32()).powi(2))
-        .sum();
-    let sigma = f32::sqrt(sum_squares / FRAMETIME_SAMPLES as f32);
-    let upper_cpu_time = mu.as_secs_f32() + 3.0 * sigma;
-
-    let estimated_cpu_time_needed =
-        Duration::from_secs_f32(upper_cpu_time) + settings.safety_margin;
-    let estimated_sleep_time = target_frametime - estimated_cpu_time_needed.min(target_frametime);
-    if settings.enabled {
-        spin_sleep::sleep(estimated_sleep_time);
-    }
-    timer.post_render_start = Instant::now();
-}
-
 fn framerate_exact_limiter(
     mut timer: ResMut<FrameTimer>,
     settings: Res<FramepacePlugin>,
@@ -169,20 +142,21 @@ fn framerate_exact_limiter(
     let system_start = Instant::now();
     let target_frametime = Duration::from_micros(1_000_000 / framerate_limit as u64);
     let this_frametime = system_start.duration_since(timer.render_start);
-    if this_frametime > target_frametime && settings.warn_on_frame_drop && settings.enabled {
+    if this_frametime > target_frametime
+        && settings.warn_on_frame_drop
+        && settings.framerate_limit.is_enabled()
+    {
         warn!(
-            "Frametime: {:.2?} (+{}), Render: {:.2?}",
+            "Frame dropped! Frametime: {:.2?} (+{})",
             this_frametime,
             format!(
                 "{:.2}ms",
                 (this_frametime - target_frametime).as_micros() as f32 / 1000.,
             ),
-            timer.frame_time_history.get(-1).unwrap_or(&Duration::ZERO)
         );
     }
     let sleep_needed = target_frametime - target_frametime.min(this_frametime);
-    let sleep_needed = sleep_needed - sleep_needed.min(settings.safety_margin);
-    if settings.enabled {
+    if settings.framerate_limit.is_enabled() {
         spin_sleep::sleep(sleep_needed);
     }
     timer.render_start = Instant::now();
