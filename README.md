@@ -1,20 +1,33 @@
+<div style="text-align: center">
+
 # bevy_framepace⏱️
+
+**Framepacing and framelimiting for Bevy**
+
+<video src = "https://user-images.githubusercontent.com/2632925/164378172-faa136d5-e78f-4328-9962-afbf410753ce.mp4">
 
 [![crates.io](https://img.shields.io/crates/v/bevy_framepace)](https://crates.io/crates/bevy_framepace)
 [![docs.rs](https://docs.rs/bevy_framepace/badge.svg)](https://docs.rs/bevy_framepace)
 [![CI](https://github.com/aevyrie/bevy_framepace/workflows/CI/badge.svg?branch=main)](https://github.com/aevyrie/bevy_framepace/actions?query=workflow%3A%22CI%22+branch%3Amain)
 [![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-main-lightblue)](https://github.com/bevyengine/bevy/blob/main/docs/plugins_guidelines.md#main-branch-tracking)
 
-### Framepacing and framelimiting for bevy
+</div>
 
-As simple as adding the plugin to your app:
+### Usage
+
+It's as simple as adding the plugin to your app:
 
 ```rs
 app.add_plugin(bevy_framepace::FramepacePlugin::default())
 ```
 
-You can adjust the framerate limit and framepacing forward estimation safety margin when adding the
-plugin, or at runtime by modifying the `FramepacePlugin` resource.
+By default, the plugin will automatically measure your framerate and use this for framepacing.
+
+You can adjust the framerate limit when adding the plugin, or at runtime by modifying the`FramepacePlugin` resource. For example, to set the framerate limit to 30fps:
+
+```rs
+settings.framerate_limit = FramerateLimit::Manual(30),
+```
 
 See `demo.rs` in the examples folder, or run with:
 ```console
@@ -25,11 +38,20 @@ cargo run --release --example demo
 
 ![image](https://user-images.githubusercontent.com/2632925/148489293-180b28e2-de49-4450-a1db-221d50b29a00.png)
 
-The plugin works by recording how long it takes to render each frame, it then uses this to estimate how long the next frame will take, and sleeps at the end of the frame until just before it needs to start rendering the next one (red annotation above). Because this system has to estimate how long to sleep for, there is a small safety margin that is subtracted from the sleep time to prevent frame drops, in case the frame takes longer to render than expected. 
-
-A second system then runs right before the frame is presented to the gpu, and sleeps until the desired frametime limit has been reached (blue annotation above). This makes up for any error in forward estimation, and ensures frame time is exactly correct.
+The plugin works by recording how long it takes to render each frame, and sleeping the main thread until the desired frametime is reached.
 
 The `spin_sleep` dependency is needed for precise sleep times. The sleep function in the standard library is not accurate enough for this application, especially on Windows.
+
+
+## Bevy Version Support
+
+I intend to track the `main` branch of Bevy. PRs supporting this are welcome!
+
+|bevy|bevy_mod_picking|
+|---|---|
+|0.7|0.4|
+|0.6|0.3|
+
 
 ## License
 
