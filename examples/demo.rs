@@ -79,9 +79,9 @@ struct EnableText;
 fn toggle_plugin(mut plugin: ResMut<FramepacePlugin>, input: Res<Input<KeyCode>>) {
     if input.just_pressed(KeyCode::Space) {
         plugin.framerate_limit = match plugin.framerate_limit {
-            FramerateLimit::Auto => FramerateLimit::Manual(30),
-            FramerateLimit::Manual(_) => FramerateLimit::Off,
-            FramerateLimit::Off => FramerateLimit::Auto,
+            FramerateLimit::Auto => FramerateLimit::Off,
+            FramerateLimit::Off => FramerateLimit::Manual(15),
+            FramerateLimit::Manual(_) => FramerateLimit::Auto,
         }
     }
 }
