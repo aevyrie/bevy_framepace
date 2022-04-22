@@ -155,7 +155,7 @@ fn framerate_exact_limiter(
             ),
         );
     }
-    let sleep_needed = target_frametime - target_frametime.min(this_frametime);
+    let sleep_needed = target_frametime.saturating_sub(this_frametime);
     if settings.framerate_limit.is_enabled() {
         spin_sleep::sleep(sleep_needed);
     }
