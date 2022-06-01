@@ -47,7 +47,7 @@ The `spin_sleep` dependency is needed for precise sleep times. The sleep functio
 
 I intend to track the `main` branch of Bevy. PRs supporting this are welcome!
 
-|bevy|bevy_mod_picking|
+|bevy|bevy_framepace|
 |---|---|
 |0.7|0.4|
 |0.6|0.3|
