@@ -1,5 +1,8 @@
-use bevy::{prelude::*, window::PresentMode};
-use bevy_framepace::{FramepacePlugin, FramerateLimit};
+use bevy::{
+    core_pipeline::clear_color::ClearColorConfig, prelude::*, render::camera::Projection,
+    window::PresentMode,
+};
+use bevy_framepace::{FramepacePlugin, FramerateLimitParam};
 use bevy_mod_picking::{
     DebugCursorPickingPlugin, PickableBundle, PickingCameraBundle, PickingPlugin,
 };
@@ -7,7 +10,7 @@ use bevy_mod_picking::{
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .insert_resource(PresentMode::Mailbox)
+        .insert_resource(PresentMode::Fifo)
         // Add the framepacing plugin.
         .add_plugin(FramepacePlugin::default())
         // Our systems for this demo
@@ -35,8 +38,12 @@ fn setup(
         })
         .insert_bundle(PickableBundle::default());
     commands
-        .spawn_bundle(PerspectiveCameraBundle {
+        .spawn_bundle(Camera3dBundle {
             transform: Transform::from_xyz(0.0, 10.0, 0.0).looking_at(Vec3::ZERO, Vec3::Z),
+            projection: Projection::Orthographic(OrthographicProjection {
+                scale: 0.01,
+                ..Default::default()
+            }),
             ..Default::default()
         })
         .insert_bundle(PickingCameraBundle::default());
@@ -47,7 +54,10 @@ fn setup(
         font_size: 40.0,
         color: Color::WHITE,
     };
-    commands.spawn_bundle(UiCameraBundle::default());
+    let mut cam_bundle = Camera2dBundle::default();
+    cam_bundle.camera.priority = 2;
+    cam_bundle.camera_2d.clear_color = ClearColorConfig::None;
+    commands.spawn_bundle(cam_bundle);
     commands
         .spawn_bundle(TextBundle {
             style: Style {
@@ -58,11 +68,15 @@ fn setup(
                 // Construct a `Vec` of `TextSection`s
                 sections: vec![
                     TextSection {
-                        value: " Press space to switch mode: ".to_string(),
+                        value: " Frame limiting mode: ".to_string(),
                         style: style.clone(),
                     },
                     TextSection {
                         value: "".to_string(),
+                        style: style.clone(),
+                    },
+                    TextSection {
+                        value: "\n [press space to switch]".to_string(),
                         style,
                     },
                 ],
@@ -79,9 +93,9 @@ struct EnableText;
 fn toggle_plugin(mut plugin: ResMut<FramepacePlugin>, input: Res<Input<KeyCode>>) {
     if input.just_pressed(KeyCode::Space) {
         plugin.framerate_limit = match plugin.framerate_limit {
-            FramerateLimit::Auto => FramerateLimit::Off,
-            FramerateLimit::Off => FramerateLimit::Manual(15),
-            FramerateLimit::Manual(_) => FramerateLimit::Auto,
+            FramerateLimitParam::Auto => FramerateLimitParam::Off,
+            FramerateLimitParam::Off => FramerateLimitParam::Manual(30),
+            FramerateLimitParam::Manual(_) => FramerateLimitParam::Auto,
         }
     }
 }
