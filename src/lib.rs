@@ -1,6 +1,6 @@
 use bevy::{
     prelude::*,
-    render::{RenderApp, RenderStage, RenderWorld},
+    render::{Extract, RenderApp, RenderStage},
     winit::WinitWindows,
 };
 use std::time::{Duration, Instant};
@@ -27,7 +27,7 @@ impl Default for FramepacePlugin {
         Self {
             framerate_limit: FramerateLimitParam::Auto,
             warn_on_frame_drop: true,
-            sleep_safety_margin: Duration::from_micros(1000),
+            sleep_safety_margin: Duration::from_micros(0),
         }
     }
 }
@@ -128,12 +128,12 @@ fn get_display_refresh_rate(
 }
 
 fn extract_display_refresh_rate(
-    settings: Res<FramepacePlugin>,
-    framerate_limit: Res<FramerateLimit>,
-    mut r_world: ResMut<RenderWorld>,
+    mut commands: Commands,
+    settings: Extract<Res<FramepacePlugin>>,
+    framerate_limit: Extract<Res<FramerateLimit>>,
 ) {
-    r_world.insert_resource(framerate_limit.clone());
-    r_world.insert_resource(settings.clone());
+    commands.insert_resource(settings.to_owned());
+    commands.insert_resource(framerate_limit.to_owned());
 }
 
 fn framerate_limiter(
@@ -160,12 +160,12 @@ fn frametime_alert(
     target_frametime: Duration,
     settings: &Res<FramepacePlugin>,
 ) {
-    if this_frametime > target_frametime
+    if this_frametime > target_frametime + Duration::from_micros(10)
         && settings.warn_on_frame_drop
         && settings.framerate_limit.is_enabled()
     {
         warn!(
-            "[Drop] Frametime: {:.2?} (+{})",
+            "[Frame Drop] {:.2?} (+{})",
             this_frametime,
             format!(
                 "{:.2}μs",

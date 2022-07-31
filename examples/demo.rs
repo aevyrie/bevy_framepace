@@ -1,7 +1,4 @@
-use bevy::{
-    core_pipeline::clear_color::ClearColorConfig, prelude::*, render::camera::Projection,
-    window::PresentMode,
-};
+use bevy::{prelude::*, render::camera::Projection, window::PresentMode};
 use bevy_framepace::{FramepacePlugin, FramerateLimitParam};
 use bevy_mod_picking::{
     DebugCursorPickingPlugin, PickableBundle, PickingCameraBundle, PickingPlugin,
@@ -54,10 +51,6 @@ fn setup(
         font_size: 40.0,
         color: Color::WHITE,
     };
-    let mut cam_bundle = Camera2dBundle::default();
-    cam_bundle.camera.priority = 2;
-    cam_bundle.camera_2d.clear_color = ClearColorConfig::None;
-    commands.spawn_bundle(cam_bundle);
     commands
         .spawn_bundle(TextBundle {
             style: Style {
@@ -101,5 +94,9 @@ fn toggle_plugin(mut plugin: ResMut<FramepacePlugin>, input: Res<Input<KeyCode>>
 }
 
 fn update_ui(mut text: Query<&mut Text, With<EnableText>>, plugin: Res<FramepacePlugin>) {
-    text.single_mut().sections[1].value = format!("{:?}", plugin.framerate_limit);
+    text.single_mut().sections[1].value = match plugin.framerate_limit {
+        FramerateLimitParam::Auto => format!("Enabled, Auto Framerate"),
+        FramerateLimitParam::Manual(fps) => format!("Enabled, Manual({fps} fps)"),
+        FramerateLimitParam::Off => format!("Disabled"),
+    };
 }

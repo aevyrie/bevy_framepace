@@ -12,8 +12,8 @@ documentation = "https://docs.rs/bevy_framepace"
 
 [dependencies]
 bevy = { git = "https://github.com/bevyengine/bevy", branch = "main", default-features = false, features = [
-    "bevy_winit",
     "render",
+    "bevy_winit",
     "x11",
 ] }
 spin_sleep = "1.0"
