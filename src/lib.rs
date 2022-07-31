@@ -1,6 +1,6 @@
 use bevy::{
     prelude::*,
-    render::{RenderApp, RenderStage, RenderWorld},
+    render::{Extract, RenderApp, RenderStage},
     winit::WinitWindows,
 };
 use std::time::{Duration, Instant};
@@ -9,7 +9,6 @@ use std::time::{Duration, Instant};
 pub struct FramepacePlugin {
     pub framerate_limit: FramerateLimitParam,
     pub warn_on_frame_drop: bool,
-    pub sleep_safety_margin: Duration,
 }
 impl Plugin for FramepacePlugin {
     fn build(&self, app: &mut App) {
@@ -19,7 +18,10 @@ impl Plugin for FramepacePlugin {
         app.sub_app_mut(RenderApp)
             .insert_resource(FrameTimer::default())
             .add_system_to_stage(RenderStage::Extract, extract_display_refresh_rate)
-            .add_system_to_stage(RenderStage::Cleanup, framerate_limiter);
+            .add_system_to_stage(
+                RenderStage::Cleanup,
+                framerate_limiter.after(bevy::render::texture::update_texture_cache_system),
+            );
     }
 }
 impl Default for FramepacePlugin {
@@ -27,7 +29,6 @@ impl Default for FramepacePlugin {
         Self {
             framerate_limit: FramerateLimitParam::Auto,
             warn_on_frame_drop: true,
-            sleep_safety_margin: Duration::from_micros(1000),
         }
     }
 }
@@ -128,12 +129,12 @@ fn get_display_refresh_rate(
 }
 
 fn extract_display_refresh_rate(
-    settings: Res<FramepacePlugin>,
-    framerate_limit: Res<FramerateLimit>,
-    mut r_world: ResMut<RenderWorld>,
+    mut commands: Commands,
+    settings: Extract<Res<FramepacePlugin>>,
+    framerate_limit: Extract<Res<FramerateLimit>>,
 ) {
-    r_world.insert_resource(framerate_limit.clone());
-    r_world.insert_resource(settings.clone());
+    commands.insert_resource(settings.to_owned());
+    commands.insert_resource(framerate_limit.to_owned());
 }
 
 fn framerate_limiter(
@@ -141,17 +142,17 @@ fn framerate_limiter(
     settings: Res<FramepacePlugin>,
     refresh_rate: Res<FramerateLimit>,
 ) {
-    let framerate_limit = refresh_rate.fps;
-    let system_start = Instant::now();
-    let target_frametime = Duration::from_secs_f64(1.0 / framerate_limit as f64);
-    let this_frametime = system_start.duration_since(timer.render_end);
-    let sleep_needed = target_frametime.saturating_sub(this_frametime);
-    let sleep_actual = sleep_needed.saturating_sub(settings.sleep_safety_margin);
+    let framerate_limit = refresh_rate.fps as f32 - 1.0;
+
+    let target_frametime = Duration::from_secs_f32(1.0 / framerate_limit.max(1.0));
+    let this_render_time = Instant::now().duration_since(timer.render_end);
+    let sleep_needed = target_frametime.saturating_sub(this_render_time);
+
+    frametime_alert(this_render_time, target_frametime, &settings);
+
     if settings.framerate_limit.is_enabled() {
-        spin_sleep::sleep(sleep_actual);
+        spin_sleep::sleep(sleep_needed);
     }
-    let updated_frametime = Instant::now().duration_since(timer.render_end);
-    frametime_alert(updated_frametime, target_frametime, &settings);
     timer.render_end = Instant::now();
 }
 
@@ -165,11 +166,11 @@ fn frametime_alert(
         && settings.framerate_limit.is_enabled()
     {
         warn!(
-            "[Drop] Frametime: {:.2?} (+{})",
+            "[Frame Drop] {:.2?} (+{})",
             this_frametime,
             format!(
                 "{:.2}μs",
-                (this_frametime - target_frametime).as_nanos() as f64 / 1000.,
+                (this_frametime.saturating_sub(target_frametime)).as_nanos() as f64 / 1000.,
             ),
         );
     }

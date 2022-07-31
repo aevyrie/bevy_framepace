@@ -1,6 +1,6 @@
 [package]
 name = "bevy_framepace"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
 resolver = "2"
 description = "Frame pacing and frame limiting for Bevy"
@@ -12,8 +12,8 @@ documentation = "https://docs.rs/bevy_framepace"
 
 [dependencies]
 bevy = { git = "https://github.com/bevyengine/bevy", branch = "main", default-features = false, features = [
-    "bevy_winit",
     "render",
+    "bevy_winit",
     "x11",
 ] }
 spin_sleep = "1.0"
