@@ -36,9 +36,7 @@ cargo run --release --example demo
 
 ## How it works
 
-![image](https://user-images.githubusercontent.com/2632925/148489293-180b28e2-de49-4450-a1db-221d50b29a00.png)
-
-The plugin works by recording how long it takes to render each frame, and sleeping the main thread until the desired frametime is reached.
+The plugin works by recording how long it takes to render each frame, and sleeping the main thread until the desired frametime is reached. This ensures the next frame isn't started until the very last moment, delaying the event loop from restarting. By delaying the event loop, and thus input collection, this reduces motion-to-photon latency by moving reading input closer to  rendering the frame.
 
 The `spin_sleep` dependency is needed for precise sleep times. The sleep function in the standard library is not accurate enough for this application, especially on Windows.
 
@@ -47,10 +45,11 @@ The `spin_sleep` dependency is needed for precise sleep times. The sleep functio
 
 I intend to track the `main` branch of Bevy. PRs supporting this are welcome!
 
-|bevy|bevy_framepace|
-|---|---|
-|0.7|0.4|
-|0.6|0.3|
+| bevy | bevy_framepace |
+| ---- | -------------- |
+| 0.8  | 0.5            |
+| 0.7  | 0.4            |
+| 0.6  | 0.3            |
 
 
 ## License
