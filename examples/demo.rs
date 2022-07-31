@@ -9,7 +9,10 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .insert_resource(PresentMode::Fifo)
         // Add the framepacing plugin.
-        .add_plugin(FramepacePlugin::default())
+        .add_plugin(FramepacePlugin {
+            warn_on_frame_drop: true,
+            ..default()
+        })
         // Our systems for this demo
         .add_startup_system(setup)
         .add_system(toggle_plugin)
@@ -25,12 +28,17 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut windows: ResMut<Windows>,
     asset_server: Res<AssetServer>,
 ) {
+    windows
+        .get_primary_mut()
+        .unwrap()
+        .set_cursor_icon(CursorIcon::Crosshair);
     commands
         .spawn_bundle(PbrBundle {
             mesh: meshes.add(Mesh::from(shape::Plane { size: 25.0 })),
-            material: materials.add(Color::BLACK.into()),
+            material: materials.add(Color::GRAY.into()),
             ..Default::default()
         })
         .insert_bundle(PickableBundle::default());
@@ -61,7 +69,7 @@ fn setup(
                 // Construct a `Vec` of `TextSection`s
                 sections: vec![
                     TextSection {
-                        value: " Frame limiting mode: ".to_string(),
+                        value: " Vsync: FIFO\n Frame pacing: ".to_string(),
                         style: style.clone(),
                     },
                     TextSection {
@@ -95,8 +103,8 @@ fn toggle_plugin(mut plugin: ResMut<FramepacePlugin>, input: Res<Input<KeyCode>>
 
 fn update_ui(mut text: Query<&mut Text, With<EnableText>>, plugin: Res<FramepacePlugin>) {
     text.single_mut().sections[1].value = match plugin.framerate_limit {
-        FramerateLimitParam::Auto => format!("Enabled, Auto Framerate"),
-        FramerateLimitParam::Manual(fps) => format!("Enabled, Manual({fps} fps)"),
-        FramerateLimitParam::Off => format!("Disabled"),
+        FramerateLimitParam::Auto => format!("On\n Framerate limit: Auto"),
+        FramerateLimitParam::Manual(fps) => format!("On\n Framerate limit: Manual({fps} fps)"),
+        FramerateLimitParam::Off => format!("Off\n Framerate limit: Off"),
     };
 }
