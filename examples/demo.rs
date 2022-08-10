@@ -1,5 +1,5 @@
-use bevy::{prelude::*, render::camera::Projection, window::PresentMode};
-use bevy_framepace::{FramepacePlugin, FramerateLimitParam};
+use bevy::{prelude::*, render::camera::Projection};
+use bevy_framepace::{FramepacePlugin, FramepaceSettings, Limiter};
 use bevy_mod_picking::{
     DebugCursorPickingPlugin, PickableBundle, PickingCameraBundle, PickingPlugin,
 };
@@ -7,12 +7,9 @@ use bevy_mod_picking::{
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .insert_resource(PresentMode::Fifo)
         // Add the framepacing plugin.
-        .add_plugin(FramepacePlugin {
-            warn_on_frame_drop: true,
-            ..default()
-        })
+        .add_plugin(FramepacePlugin)
+        .insert_resource(FramepaceSettings::default().with_warnings(true))
         // Our systems for this demo
         .add_startup_system(setup)
         .add_system(toggle_plugin)
@@ -23,7 +20,24 @@ fn main() {
         .run();
 }
 
-/// set up a simple 3D scene
+#[derive(Component)]
+struct EnableText;
+
+fn toggle_plugin(mut settings: ResMut<FramepaceSettings>, input: Res<Input<KeyCode>>) {
+    if input.just_pressed(KeyCode::Space) {
+        settings.limiter = match settings.limiter {
+            Limiter::Auto => Limiter::Off,
+            Limiter::Off => Limiter::from_framerate(30.0),
+            Limiter::Manual(_) => Limiter::Auto,
+        }
+    }
+}
+
+fn update_ui(mut text: Query<&mut Text, With<EnableText>>, settings: Res<FramepaceSettings>) {
+    text.single_mut().sections[1].value = format!("{:?}", settings.limiter);
+}
+
+/// set up the scene
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -69,7 +83,7 @@ fn setup(
                 // Construct a `Vec` of `TextSection`s
                 sections: vec![
                     TextSection {
-                        value: " Vsync: FIFO\n Frame pacing: ".to_string(),
+                        value: " Vsync: On\n Frame pacing: ".to_string(),
                         style: style.clone(),
                     },
                     TextSection {
@@ -86,25 +100,4 @@ fn setup(
             ..default()
         })
         .insert(EnableText);
-}
-
-#[derive(Component)]
-struct EnableText;
-
-fn toggle_plugin(mut plugin: ResMut<FramepacePlugin>, input: Res<Input<KeyCode>>) {
-    if input.just_pressed(KeyCode::Space) {
-        plugin.framerate_limit = match plugin.framerate_limit {
-            FramerateLimitParam::Auto => FramerateLimitParam::Off,
-            FramerateLimitParam::Off => FramerateLimitParam::Manual(30),
-            FramerateLimitParam::Manual(_) => FramerateLimitParam::Auto,
-        }
-    }
-}
-
-fn update_ui(mut text: Query<&mut Text, With<EnableText>>, plugin: Res<FramepacePlugin>) {
-    text.single_mut().sections[1].value = match plugin.framerate_limit {
-        FramerateLimitParam::Auto => format!("On\n Framerate limit: Auto"),
-        FramerateLimitParam::Manual(fps) => format!("On\n Framerate limit: Manual({fps} fps)"),
-        FramerateLimitParam::Off => format!("Off\n Framerate limit: Off"),
-    };
 }
