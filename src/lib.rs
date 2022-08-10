@@ -60,8 +60,8 @@ impl Plugin for FramepacePlugin {
 pub struct FramepaceSettings {
     /// Configures the framerate limiting strategy.
     pub limiter: Limiter,
-    /// When enabled, the plugin logs warnings when the app's frametime exceeds the target
-    /// frametime, rounded to the nearest 100µs.
+    /// When enabled, the plugin logs a warning every time the app's frametime exceeds the target
+    /// frametime by 100µs.
     pub warn_on_frame_drop: bool,
 }
 impl FramepaceSettings {
