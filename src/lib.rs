@@ -60,8 +60,8 @@ impl Plugin for FramepacePlugin {
 pub struct FramepaceSettings {
     /// Configures the framerate limiting strategy.
     pub limiter: Limiter,
-    /// When enabled, the plugin logs warnings when the app's frametime exceeds the target
-    /// frametime.
+    /// When enabled, the plugin logs a warning every time the app's frametime exceeds the target
+    /// frametime by 100µs.
     pub warn_on_frame_drop: bool,
 }
 impl FramepaceSettings {
@@ -183,11 +183,16 @@ fn framerate_limiter(
     let this_render_time = Instant::now().duration_since(timer.render_end);
     let sleep_needed = target_frametime.saturating_sub(this_render_time);
 
-    frametime_alert(this_render_time, target_frametime, &settings);
-
     if settings.limiter.is_enabled() {
         spin_sleep::sleep(sleep_needed);
     }
+
+    frametime_alert(
+        Instant::now().duration_since(timer.render_end),
+        target_frametime,
+        &settings,
+    );
+
     timer.render_end = Instant::now();
 }
 
@@ -196,7 +201,7 @@ fn frametime_alert(
     target_frametime: Duration,
     settings: &Res<FramepaceSettings>,
 ) {
-    if this_frametime > target_frametime
+    if this_frametime.saturating_sub(target_frametime) > Duration::from_micros(100)
         && settings.warn_on_frame_drop
         && settings.limiter.is_enabled()
     {
