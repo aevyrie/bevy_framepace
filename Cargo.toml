@@ -14,9 +14,12 @@ documentation = "https://docs.rs/bevy_framepace"
 bevy = { version = "0.8", default-features = false, features = [
     "bevy_render",
     "bevy_winit",
-    "x11",
 ] }
 spin_sleep = "1.0"
+
+[features]
+default = ["x11"]
+x11 = ["bevy/x11"]
 
 [dev-dependencies]
 bevy_mod_picking = "0.8"
