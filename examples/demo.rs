@@ -9,7 +9,11 @@ fn main() {
         .add_plugins(DefaultPlugins)
         // Add the framepacing plugin.
         .add_plugin(FramepacePlugin)
-        .insert_resource(FramepaceSettings::default().with_warnings(true))
+        // Frame drop  warning can be disabled by uncommenting this line, but we will keep them on
+        // for the demo:
+        //
+        // .insert_resource(FramepaceSettings::default().with_warnings(false))
+        //
         // Our systems for this demo
         .add_startup_system(setup)
         .add_system(toggle_plugin)
