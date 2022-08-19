@@ -23,3 +23,8 @@ x11 = ["bevy/x11"]
 
 [dev-dependencies]
 bevy_mod_picking = { git = "https://github.com/aevyrie/bevy_mod_picking", branch = "main" }
+bevy = { git = "https://github.com/bevyengine/bevy", branch = "main", default-features = false, features = [
+    "bevy_ui",
+    "bevy_text",
+    "bevy_core_pipeline",
+] }
