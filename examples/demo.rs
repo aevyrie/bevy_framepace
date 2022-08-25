@@ -1,4 +1,4 @@
-use bevy::{prelude::*, render::camera::Projection};
+use bevy::{diagnostic::LogDiagnosticsPlugin, prelude::*, render::camera::Projection};
 use bevy_framepace::{FramepacePlugin, FramepaceSettings, Limiter};
 use bevy_mod_picking::{
     DebugCursorPickingPlugin, PickableBundle, PickingCameraBundle, PickingPlugin,
@@ -7,13 +7,8 @@ use bevy_mod_picking::{
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        // Add the framepacing plugin.
+        // Add the framepacing plugin
         .add_plugin(FramepacePlugin)
-        // Frame drop  warning can be disabled by uncommenting this line, but we will keep them on
-        // for the demo:
-        //
-        // .insert_resource(FramepaceSettings::default().with_warnings(false))
-        //
         // Our systems for this demo
         .add_startup_system(setup)
         .add_system(toggle_plugin)
@@ -21,6 +16,8 @@ fn main() {
         // Mouse picking to visualize latency
         .add_plugin(PickingPlugin)
         .add_plugin(DebugCursorPickingPlugin)
+        // Log framepace custom bevy diagnostics to stdout
+        .add_plugin(LogDiagnosticsPlugin::default())
         .run();
 }
 

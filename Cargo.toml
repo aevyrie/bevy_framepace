@@ -15,7 +15,6 @@ bevy = { git = "https://github.com/bevyengine/bevy", branch = "main", default-fe
     "bevy_render",
     "bevy_winit",
 ] }
-spin_sleep = "1.0"
 
 [features]
 default = ["x11"]
