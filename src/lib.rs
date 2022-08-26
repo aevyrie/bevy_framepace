@@ -146,7 +146,7 @@ fn get_display_refresh_rate(
     };
 
     if new_frametime != frame_limit.0 {
-        info!("Frametime limit changed to: {:.2?}", new_frametime);
+        info!("Frametime limit changed to: {:?}", new_frametime);
         frame_limit.0 = new_frametime;
     }
 }
@@ -179,6 +179,7 @@ fn extract_resources(
 pub struct FramePaceStats {
     oversleep: Arc<Mutex<VecDeque<Duration>>>,
     frametime: Arc<Mutex<Duration>>,
+    error: Arc<Mutex<f64>>,
 }
 
 impl Default for FramePaceStats {
@@ -186,6 +187,7 @@ impl Default for FramePaceStats {
         Self {
             oversleep: Arc::new(Mutex::new(VecDeque::from([Duration::ZERO; 240]))),
             frametime: Default::default(),
+            error: Default::default(),
         }
     }
 }
@@ -200,12 +202,11 @@ fn framerate_limiter(
     let system_start = Instant::now();
     let this_render_time = system_start.duration_since(timer.render_end);
 
-    let mut last_oversleep_lock = stats.oversleep.try_lock().unwrap();
-    let last_oversleep_avg =
-        last_oversleep_lock.iter().sum::<Duration>() / last_oversleep_lock.len() as u32;
+    let mut oversleep_lock = stats.oversleep.try_lock().unwrap();
+    let oversleep_max = oversleep_lock.iter().max().copied().unwrap_or_default();
 
     let sleep_needed = target_frametime.saturating_sub(this_render_time);
-    let sleep_needed_coarse = sleep_needed.saturating_sub(last_oversleep_avg * 2);
+    let sleep_needed_coarse = sleep_needed.saturating_sub(oversleep_max);
 
     let sleep_start = Instant::now();
     if settings.limiter.is_enabled() && sleep_needed_coarse > Duration::ZERO {
@@ -220,10 +221,12 @@ fn framerate_limiter(
         while Instant::now().duration_since(system_start) < sleep_needed {}
     }
 
-    last_oversleep_lock.pop_back();
-    last_oversleep_lock.push_front(this_oversleep);
+    oversleep_lock.pop_back();
+    oversleep_lock.push_front(this_oversleep);
 
-    *stats.frametime.try_lock().unwrap() = Instant::now().duration_since(timer.render_end);
+    let frame_time = Instant::now().duration_since(timer.render_end);
+    *stats.frametime.try_lock().unwrap() = frame_time;
+    *stats.error.try_lock().unwrap() = frame_time.as_secs_f64() - target_frametime.as_secs_f64();
 
     timer.render_end = Instant::now();
 }
@@ -245,13 +248,22 @@ impl FramePaceDiagnosticsPlugin {
     /// [`DiagnosticId`] for oversleep
     pub const FRAMEPACE_OVERSLEEP: DiagnosticId =
         DiagnosticId::from_u128(7873478903246724896826890280382389054);
+    /// [`DiagnosticId`] for failures to meet frame time target
+    pub const FRAMEPACE_ERROR: DiagnosticId =
+        DiagnosticId::from_u128(978023490268634078905367093342937);
 
     /// Initial setup for framepace diagnostics
     pub fn setup_system(mut diagnostics: ResMut<Diagnostics>) {
+        diagnostics.add(
+            Diagnostic::new(Self::FRAMEPACE_FRAMETIME, "framepace::frametime", 20)
+                .with_suffix("ms"),
+        );
+        diagnostics.add(
+            Diagnostic::new(Self::FRAMEPACE_OVERSLEEP, "framepace::os_oversleep", 20)
+                .with_suffix("µs"),
+        );
         diagnostics
-            .add(Diagnostic::new(Self::FRAMEPACE_FRAMETIME, "fp_frametime", 20).with_suffix("ms"));
-        diagnostics
-            .add(Diagnostic::new(Self::FRAMEPACE_OVERSLEEP, "fp_oversleep", 20).with_suffix("µs"));
+            .add(Diagnostic::new(Self::FRAMEPACE_ERROR, "framepace::error", 20).with_suffix("ns"));
     }
 
     /// Updates diagnostic data from measurements
@@ -264,13 +276,17 @@ impl FramePaceDiagnosticsPlugin {
             return;
         }
 
-        let frametime_millis = stats.frametime.lock().unwrap().as_secs_f64() * 1000.0;
-        let oversleep_lock = stats.oversleep.lock().unwrap();
-        let oversleep_micros =
-            (oversleep_lock.iter().sum::<Duration>() / oversleep_lock.len() as u32).as_secs_f64()
-                * 1000000.0;
+        let frametime_millis = stats.frametime.try_lock().unwrap().as_secs_f64() * 1000.0;
+        let oversleep_lock = stats.oversleep.try_lock().unwrap();
+        let oversleep_micros = oversleep_lock
+            .front()
+            .and_then(|v| Some(v.as_secs_f64()))
+            .unwrap_or(0.0)
+            * 1000000.0;
+        let error_nanos = *stats.error.try_lock().unwrap() * 1000000000.0;
 
         diagnostics.add_measurement(Self::FRAMEPACE_FRAMETIME, || frametime_millis);
         diagnostics.add_measurement(Self::FRAMEPACE_OVERSLEEP, || oversleep_micros);
+        diagnostics.add_measurement(Self::FRAMEPACE_ERROR, || error_nanos);
     }
 }
