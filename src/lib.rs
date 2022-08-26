@@ -280,7 +280,7 @@ impl FramePaceDiagnosticsPlugin {
         let oversleep_lock = stats.oversleep.try_lock().unwrap();
         let oversleep_micros = oversleep_lock
             .front()
-            .and_then(|v| Some(v.as_secs_f64()))
+            .map(|v| v.as_secs_f64())
             .unwrap_or(0.0)
             * 1000000.0;
         let error_nanos = *stats.error.try_lock().unwrap() * 1000000000.0;
