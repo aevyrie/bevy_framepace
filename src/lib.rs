@@ -30,11 +30,17 @@
 #![deny(missing_docs)]
 
 use bevy::{
+    diagnostic::{Diagnostic, DiagnosticId, Diagnostics},
     prelude::*,
     render::{Extract, RenderApp, RenderStage},
+    utils::Instant,
     winit::WinitWindows,
 };
-use std::time::{Duration, Instant};
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 /// Adds framepacing and framelimiting functionality to your [`App`].
 #[derive(Debug, Clone, Component)]
@@ -43,10 +49,12 @@ impl Plugin for FramepacePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<FramepaceSettings>()
             .init_resource::<FrametimeLimit>()
-            .add_system_to_stage(CoreStage::Update, get_display_refresh_rate);
+            .init_resource::<FramePaceStats>()
+            .add_system_to_stage(CoreStage::Update, get_display_refresh_rate)
+            .add_plugin(FramePaceDiagnosticsPlugin);
         app.sub_app_mut(RenderApp)
             .insert_resource(FrameTimer::default())
-            .add_system_to_stage(RenderStage::Extract, extract_display_refresh_rate)
+            .add_system_to_stage(RenderStage::Extract, extract_resources)
             .add_system_to_stage(
                 RenderStage::Cleanup,
                 // We need this system to run at the end, immediately before the event loop restarts
@@ -60,17 +68,8 @@ impl Plugin for FramepacePlugin {
 pub struct FramepaceSettings {
     /// Configures the framerate limiting strategy.
     pub limiter: Limiter,
-    /// When enabled, the plugin logs a warning every time the app's frametime exceeds the target
-    /// frametime by 100µs.
-    pub warn_on_frame_drop: bool,
 }
 impl FramepaceSettings {
-    /// Builds plugin settings with warnings set to `warnings_enabled`.
-    pub fn with_warnings(mut self, warnings_enabled: bool) -> Self {
-        self.warn_on_frame_drop = warnings_enabled;
-        self
-    }
-
     /// Builds plugin settings with the specified [`Limiter`] configuration.
     pub fn with_limiter(mut self, limiter: Limiter) -> Self {
         self.limiter = limiter;
@@ -81,7 +80,6 @@ impl Default for FramepaceSettings {
     fn default() -> FramepaceSettings {
         FramepaceSettings {
             limiter: Limiter::Auto,
-            warn_on_frame_drop: true,
         }
     }
 }
@@ -148,7 +146,7 @@ fn get_display_refresh_rate(
     };
 
     if new_frametime != frame_limit.0 {
-        info!("Frametime limit changed to: {:.2?}", new_frametime);
+        info!("Frametime limit changed to: {:?}", new_frametime);
         frame_limit.0 = new_frametime;
     }
 }
@@ -165,50 +163,130 @@ fn detect_frametime(winit: NonSend<WinitWindows>, windows: Res<Windows>) -> Opti
     Some(best_frametime)
 }
 
-fn extract_display_refresh_rate(
+fn extract_resources(
     mut commands: Commands,
     settings: Extract<Res<FramepaceSettings>>,
     framerate_limit: Extract<Res<FrametimeLimit>>,
+    stats: Extract<Res<FramePaceStats>>,
 ) {
     commands.insert_resource(settings.to_owned());
     commands.insert_resource(framerate_limit.to_owned());
+    commands.insert_resource(stats.to_owned());
+}
+
+/// Holds frame time measurements for framepacing diagnostics
+#[derive(Clone, Debug)]
+pub struct FramePaceStats {
+    oversleep: Arc<Mutex<VecDeque<Duration>>>,
+    frametime: Arc<Mutex<Duration>>,
+    error: Arc<Mutex<f64>>,
+}
+
+impl Default for FramePaceStats {
+    fn default() -> Self {
+        Self {
+            oversleep: Arc::new(Mutex::new(VecDeque::from([Duration::ZERO; 240]))),
+            frametime: Default::default(),
+            error: Default::default(),
+        }
+    }
 }
 
 fn framerate_limiter(
     mut timer: ResMut<FrameTimer>,
     settings: Res<FramepaceSettings>,
     target_frametime: Res<FrametimeLimit>,
+    stats: Res<FramePaceStats>,
 ) {
     let target_frametime = target_frametime.0;
-    let this_render_time = Instant::now().duration_since(timer.render_end);
-    let sleep_needed = target_frametime.saturating_sub(this_render_time);
+    let system_start = Instant::now();
+    let this_render_time = system_start.duration_since(timer.render_end);
 
-    if settings.limiter.is_enabled() {
-        spin_sleep::sleep(sleep_needed);
+    let mut oversleep_lock = stats.oversleep.try_lock().unwrap();
+    let oversleep_max = oversleep_lock.iter().max().copied().unwrap_or_default();
+
+    let sleep_needed = target_frametime.saturating_sub(this_render_time);
+    let sleep_needed_coarse = sleep_needed.saturating_sub(oversleep_max);
+
+    let sleep_start = Instant::now();
+    if settings.limiter.is_enabled() && sleep_needed_coarse > Duration::ZERO {
+        std::thread::sleep(sleep_needed_coarse);
     }
 
-    frametime_alert(
-        Instant::now().duration_since(timer.render_end),
-        target_frametime,
-        &settings,
-    );
+    let this_oversleep = Instant::now()
+        .duration_since(sleep_start)
+        .saturating_sub(sleep_needed_coarse);
+
+    if settings.limiter.is_enabled() {
+        while Instant::now().duration_since(system_start) < sleep_needed {}
+    }
+
+    oversleep_lock.pop_back();
+    oversleep_lock.push_front(this_oversleep);
+
+    let frame_time = Instant::now().duration_since(timer.render_end);
+    *stats.frametime.try_lock().unwrap() = frame_time;
+    *stats.error.try_lock().unwrap() = frame_time.as_secs_f64() - target_frametime.as_secs_f64();
 
     timer.render_end = Instant::now();
 }
 
-fn frametime_alert(
-    this_frametime: Duration,
-    target_frametime: Duration,
-    settings: &Res<FramepaceSettings>,
-) {
-    if this_frametime.saturating_sub(target_frametime) > Duration::from_micros(100)
-        && settings.warn_on_frame_drop
-        && settings.limiter.is_enabled()
-    {
-        warn!(
-            "[Frame Drop] {:.2?} (+{:.2?})",
-            this_frametime,
-            this_frametime.saturating_sub(target_frametime),
+/// Adds [`Diagnostics`] data from `bevy_framepace`
+pub struct FramePaceDiagnosticsPlugin;
+
+impl Plugin for FramePaceDiagnosticsPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_startup_system(Self::setup_system)
+            .add_system(Self::diagnostic_system);
+    }
+}
+
+impl FramePaceDiagnosticsPlugin {
+    /// [`DiagnosticId`] for the frametime
+    pub const FRAMEPACE_FRAMETIME: DiagnosticId =
+        DiagnosticId::from_u128(8021378406439507683279787892187089153);
+    /// [`DiagnosticId`] for oversleep
+    pub const FRAMEPACE_OVERSLEEP: DiagnosticId =
+        DiagnosticId::from_u128(7873478903246724896826890280382389054);
+    /// [`DiagnosticId`] for failures to meet frame time target
+    pub const FRAMEPACE_ERROR: DiagnosticId =
+        DiagnosticId::from_u128(978023490268634078905367093342937);
+
+    /// Initial setup for framepace diagnostics
+    pub fn setup_system(mut diagnostics: ResMut<Diagnostics>) {
+        diagnostics.add(
+            Diagnostic::new(Self::FRAMEPACE_FRAMETIME, "framepace::frametime", 20)
+                .with_suffix("ms"),
         );
+        diagnostics.add(
+            Diagnostic::new(Self::FRAMEPACE_OVERSLEEP, "framepace::os_oversleep", 20)
+                .with_suffix("µs"),
+        );
+        diagnostics
+            .add(Diagnostic::new(Self::FRAMEPACE_ERROR, "framepace::error", 20).with_suffix("ns"));
+    }
+
+    /// Updates diagnostic data from measurements
+    pub fn diagnostic_system(
+        mut diagnostics: ResMut<Diagnostics>,
+        time: Res<Time>,
+        stats: Res<FramePaceStats>,
+    ) {
+        if time.delta_seconds_f64() == 0.0 {
+            return;
+        }
+
+        let frametime_millis = stats.frametime.try_lock().unwrap().as_secs_f64() * 1000.0;
+        let oversleep_lock = stats.oversleep.try_lock().unwrap();
+        let oversleep_micros = oversleep_lock
+            .front()
+            .map(|v| v.as_secs_f64())
+            .unwrap_or(0.0)
+            * 1000000.0;
+        let error_nanos = *stats.error.try_lock().unwrap() * 1000000000.0;
+
+        diagnostics.add_measurement(Self::FRAMEPACE_FRAMETIME, || frametime_millis);
+        diagnostics.add_measurement(Self::FRAMEPACE_OVERSLEEP, || oversleep_micros);
+        diagnostics.add_measurement(Self::FRAMEPACE_ERROR, || error_nanos);
     }
 }
