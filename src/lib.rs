@@ -168,12 +168,16 @@ fn detect_frametime(winit: NonSend<WinitWindows>, windows: Res<Windows>) -> Opti
         let monitor = winit
             .get_window(windows.get_primary()?.id())?
             .current_monitor()?;
-        bevy::winit::get_best_videomode(&monitor).refresh_rate_millihertz() as f32 / 1000.0
+
+        // We need to subtract 0.5 because winit only reads framerate to the nearest 1 hertz. To
+        // prevent frames building up, adding latency, we need to use the most conservative possible
+        // refresh rate that could round up to the integer value reported by winit.
+        bevy::winit::get_best_videomode(&monitor).refresh_rate_millihertz() as f64 / 1000.0 - 0.5
     };
     #[cfg(target_arch = "wasm32")]
-    let best_framerate = 60.0;
+    let best_framerate = 59.5;
 
-    let best_frametime = Duration::from_secs_f32(1.0 / best_framerate);
+    let best_frametime = Duration::from_secs_f64(1.0 / best_framerate);
     Some(best_frametime)
 }
 
