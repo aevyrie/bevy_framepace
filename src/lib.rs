@@ -163,12 +163,17 @@ fn get_display_refresh_rate(
 }
 
 fn detect_frametime(winit: NonSend<WinitWindows>, windows: Res<Windows>) -> Option<Duration> {
-    let monitor = winit
-        .get_window(windows.get_primary()?.id())?
-        .current_monitor()?;
-    let best_framerate_mhz =
-        bevy::winit::get_best_videomode(&monitor).refresh_rate_millihertz() as f32;
-    let best_frametime = Duration::from_secs_f32(1000.0 / best_framerate_mhz);
+    #[cfg(not(target_arch = "wasm32"))]
+    let best_framerate = {
+        let monitor = winit
+            .get_window(windows.get_primary()?.id())?
+            .current_monitor()?;
+        bevy::winit::get_best_videomode(&monitor).refresh_rate_millihertz() as f32 / 1000.0
+    };
+    #[cfg(target_arch = "wasm32")]
+    let best_framerate = 60.0;
+
+    let best_frametime = Duration::from_secs_f32(1.0 / best_framerate);
     Some(best_frametime)
 }
 
@@ -219,6 +224,7 @@ fn framerate_limiter(
 
     let sleep_start = Instant::now();
     if settings.limiter.is_enabled() && sleep_needed_coarse > Duration::ZERO {
+        #[cfg(not(target_arch = "wasm32"))]
         std::thread::sleep(sleep_needed_coarse);
     }
 

@@ -6,7 +6,13 @@ use bevy_mod_picking::{
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            window: WindowDescriptor {
+                fit_canvas_to_parent: true,
+                ..default()
+            },
+            ..default()
+        }))
         // Add the framepacing plugin
         .add_plugin(FramepacePlugin)
         // Our systems for this demo
@@ -52,7 +58,7 @@ fn setup(
         .set_cursor_icon(CursorIcon::Crosshair);
     commands.spawn((
         PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Plane { size: 25.0 })),
+            mesh: meshes.add(Mesh::from(shape::Plane { size: 250.0 })),
             material: materials.add(Color::BLACK.into()),
             ..Default::default()
         },
