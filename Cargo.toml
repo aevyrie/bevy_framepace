@@ -15,6 +15,7 @@ bevy = { version = "0.9", default-features = false, features = [
     "bevy_render",
     "bevy_winit",
 ] }
+wasm_thread = "0.2"
 
 [features]
 default = ["x11"]
@@ -26,4 +27,5 @@ bevy = { version = "0.9", default-features = false, features = [
     "bevy_ui",
     "bevy_text",
     "bevy_core_pipeline",
+    "bevy_winit",
 ] }
