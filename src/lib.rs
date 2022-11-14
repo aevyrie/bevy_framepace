@@ -58,13 +58,13 @@ impl Plugin for FramepacePlugin {
             .add_system_to_stage(
                 RenderStage::Cleanup,
                 // We need this system to run at the end, immediately before the event loop restarts
-                framerate_limiter.exclusive_system().at_end(),
+                framerate_limiter.at_end(),
             );
     }
 }
 
 /// Framepacing plugin configuration.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Resource)]
 pub struct FramepaceSettings {
     /// Configures the framerate limiting strategy.
     pub limiter: Limiter,
@@ -109,10 +109,21 @@ impl Limiter {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+impl std::fmt::Display for Limiter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let output = match self {
+            Limiter::Auto => "Auto".into(),
+            Limiter::Manual(t) => format!("{:.2} fps", 1.0 / t.as_secs_f32()),
+            Limiter::Off => "Off".into(),
+        };
+        write!(f, "{}", output)
+    }
+}
+
+#[derive(Debug, Default, Clone, Resource)]
 struct FrametimeLimit(Duration);
 
-#[derive(Debug)]
+#[derive(Debug, Resource)]
 struct FrameTimer {
     render_end: Instant,
 }
@@ -155,11 +166,9 @@ fn detect_frametime(winit: NonSend<WinitWindows>, windows: Res<Windows>) -> Opti
     let monitor = winit
         .get_window(windows.get_primary()?.id())?
         .current_monitor()?;
-    // We need to subtract 0.5 here because winit only reports framerate to the nearest integer. To
-    // prevent frames building up, adding latency, we need to use the most conservative possible
-    // refresh rate that could round up to the integer value reported by winit.
-    let best_framerate = bevy::winit::get_best_videomode(&monitor).refresh_rate() as f64 - 0.5;
-    let best_frametime = Duration::from_secs_f64(1.0 / best_framerate);
+    let best_framerate_mhz =
+        bevy::winit::get_best_videomode(&monitor).refresh_rate_millihertz() as f32;
+    let best_frametime = Duration::from_secs_f32(1000.0 / best_framerate_mhz);
     Some(best_frametime)
 }
 
@@ -175,7 +184,7 @@ fn extract_resources(
 }
 
 /// Holds frame time measurements for framepacing diagnostics
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Resource)]
 pub struct FramePaceStats {
     oversleep: Arc<Mutex<VecDeque<Duration>>>,
     frametime: Arc<Mutex<Duration>>,

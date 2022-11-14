@@ -35,7 +35,7 @@ fn toggle_plugin(mut settings: ResMut<FramepaceSettings>, input: Res<Input<KeyCo
 }
 
 fn update_ui(mut text: Query<&mut Text, With<EnableText>>, settings: Res<FramepaceSettings>) {
-    text.single_mut().sections[1].value = format!("{:?}", settings.limiter);
+    text.single_mut().sections[1].value = format!("{}", settings.limiter);
 }
 
 /// set up the scene
@@ -50,34 +50,36 @@ fn setup(
         .get_primary_mut()
         .unwrap()
         .set_cursor_icon(CursorIcon::Crosshair);
-    commands
-        .spawn_bundle(PbrBundle {
+    commands.spawn((
+        PbrBundle {
             mesh: meshes.add(Mesh::from(shape::Plane { size: 25.0 })),
-            material: materials.add(Color::GRAY.into()),
+            material: materials.add(Color::BLACK.into()),
             ..Default::default()
-        })
-        .insert_bundle(PickableBundle::default());
-    commands
-        .spawn_bundle(Camera3dBundle {
+        },
+        PickableBundle::default(),
+    ));
+    commands.spawn((
+        Camera3dBundle {
             transform: Transform::from_xyz(0.0, 10.0, 0.0).looking_at(Vec3::ZERO, Vec3::Z),
             projection: Projection::Orthographic(OrthographicProjection {
                 scale: 0.01,
                 ..Default::default()
             }),
             ..Default::default()
-        })
-        .insert_bundle(PickingCameraBundle::default());
+        },
+        PickingCameraBundle::default(),
+    ));
     // UI
-    let font = asset_server.load("fonts/FiraSans-Bold.ttf");
+    let font = asset_server.load("fonts/FiraMono-Medium.ttf");
     let style = TextStyle {
-        font: font,
+        font,
         font_size: 40.0,
         color: Color::WHITE,
     };
-    commands
-        .spawn_bundle(TextBundle {
+    commands.spawn((
+        TextBundle {
             style: Style {
-                align_self: AlignSelf::FlexEnd,
+                align_self: AlignSelf::FlexStart,
                 ..default()
             },
             text: Text {
@@ -99,6 +101,7 @@ fn setup(
                 ..default()
             },
             ..default()
-        })
-        .insert(EnableText);
+        },
+        EnableText,
+    ));
 }
