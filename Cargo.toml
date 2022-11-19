@@ -11,7 +11,7 @@ documentation = "https://docs.rs/bevy_framepace"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bevy = { version = "0.9", default-features = false, features = [
+bevy = { git = "https://github.com/bevyengine/bevy", branch = "main" , default-features = false, features = [
     "bevy_render",
     "bevy_winit",
 ] }
@@ -22,8 +22,8 @@ default = ["x11"]
 x11 = ["bevy/x11"]
 
 [dev-dependencies]
-bevy_mod_picking = "0.10"
-bevy = { version = "0.9", default-features = false, features = [
+bevy_mod_picking = { git = "https://github.com/aevyrie/bevy_mod_picking", branch = "main" }
+bevy = { git = "https://github.com/bevyengine/bevy", branch = "main" , default-features = false, features = [
     "bevy_ui",
     "bevy_text",
     "bevy_core_pipeline",
