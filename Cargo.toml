@@ -18,7 +18,7 @@ bevy = { version = "0.9.1", default-features = false, features = [
 spin_sleep = "1.0"
 
 [features]
-default = ["debug"]
+default = ["debug", "bevy/x11"]
 debug = ["bevy/bevy_sprite", "bevy/bevy_core_pipeline", "bevy/bevy_asset"]
 
 [dev-dependencies]
