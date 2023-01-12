@@ -11,47 +11,27 @@ jobs:
     name: CI
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
 
       - name: Update Packages
         run: sudo apt-get update -yq
         
       - name: Install dependencies
         run: sudo apt-get install -yq --no-install-recommends libudev-dev libasound2-dev libxcb-composite0-dev
-
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
           
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@ce325b60658c1b38465c06cc965b79baf32c1e72
-
-      - name: Install fmt
-        run: rustup component add rustfmt
       
-      - name: fmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
-
-      - name: check
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-
-      - name: Install clippy  
-        run: rustup component add clippy
+      - name: Format
+        run: cargo fmt --all -- --check
       
-      - name: run clippy
-        uses: actions-rs/cargo@v1
-        with:
-         command: clippy
-         args: -- -D warnings
-     
-      - name: test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
+      - name: Check
+        run: cargo check --all-targets
+      
+      - name: Clippy
+        run: cargo clippy --all-targets
+      
+      - name: Test
+        run: cargo test --all-targets
+
