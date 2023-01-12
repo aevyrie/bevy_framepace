@@ -29,18 +29,22 @@
 
 #![deny(missing_docs)]
 
+#[cfg(not(target_arch = "wasm32"))]
+use bevy::winit::WinitWindows;
 use bevy::{
-    diagnostic::{Diagnostic, DiagnosticId, Diagnostics},
+    ecs::schedule::ShouldRun,
     prelude::*,
     render::{Extract, RenderApp, RenderStage},
     utils::Instant,
-    winit::WinitWindows,
 };
+
 use std::{
-    collections::VecDeque,
     sync::{Arc, Mutex},
     time::Duration,
 };
+
+#[cfg(feature = "debug")]
+mod debug;
 
 /// Adds framepacing and framelimiting functionality to your [`App`].
 #[derive(Debug, Clone, Component)]
@@ -49,16 +53,27 @@ impl Plugin for FramepacePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<FramepaceSettings>()
             .init_resource::<FrametimeLimit>()
-            .init_resource::<FramePaceStats>()
-            .add_system_to_stage(CoreStage::Update, get_display_refresh_rate)
-            .add_plugin(FramePaceDiagnosticsPlugin);
+            .init_resource::<FramePaceStats>();
+
+        #[cfg(not(target_arch = "wasm32"))]
+        app.add_system_to_stage(CoreStage::Update, get_display_refresh_rate);
+        #[cfg(feature = "debug")]
+        app.add_plugin(debug::FramePaceDiagnosticsPlugin);
         app.sub_app_mut(RenderApp)
             .insert_resource(FrameTimer::default())
             .add_system_to_stage(RenderStage::Extract, extract_resources)
             .add_system_to_stage(
                 RenderStage::Cleanup,
                 // We need this system to run at the end, immediately before the event loop restarts
-                framerate_limiter.at_end(),
+                framerate_limiter
+                    .at_end()
+                    .with_run_criteria(|settings: Res<FramepaceSettings>| {
+                        if settings.limiter.is_enabled() {
+                            ShouldRun::Yes
+                        } else {
+                            ShouldRun::No
+                        }
+                    }),
             );
     }
 }
@@ -120,11 +135,13 @@ impl std::fmt::Display for Limiter {
     }
 }
 
-#[derive(Debug, Default, Clone, Resource)]
-struct FrametimeLimit(Duration);
+/// Current frametime limit based on settings and monitor refresh rate.
+#[derive(Debug, Default, Clone, Reflect, Resource)]
+pub struct FrametimeLimit(Duration);
 
+/// Tracks the instant of the end of the previous frame.
 #[derive(Debug, Resource)]
-struct FrameTimer {
+pub struct FrameTimer {
     render_end: Instant,
 }
 impl Default for FrameTimer {
@@ -135,6 +152,7 @@ impl Default for FrameTimer {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn get_display_refresh_rate(
     settings: Res<FramepaceSettings>,
     winit: NonSend<WinitWindows>,
@@ -162,8 +180,8 @@ fn get_display_refresh_rate(
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn detect_frametime(winit: NonSend<WinitWindows>, windows: Res<Windows>) -> Option<Duration> {
-    #[cfg(not(target_arch = "wasm32"))]
     let best_framerate = {
         let monitor = winit
             .get_window(windows.get_primary()?.id())?
@@ -174,8 +192,6 @@ fn detect_frametime(winit: NonSend<WinitWindows>, windows: Res<Windows>) -> Opti
         // refresh rate that could round up to the integer value reported by winit.
         bevy::winit::get_best_videomode(&monitor).refresh_rate_millihertz() as f64 / 1000.0 - 0.5
     };
-    #[cfg(target_arch = "wasm32")]
-    let best_framerate = 59.5;
 
     let best_frametime = Duration::from_secs_f64(1.0 / best_framerate);
     Some(best_frametime)
@@ -195,117 +211,42 @@ fn extract_resources(
 /// Holds frame time measurements for framepacing diagnostics
 #[derive(Clone, Debug, Resource)]
 pub struct FramePaceStats {
-    oversleep: Arc<Mutex<VecDeque<Duration>>>,
     frametime: Arc<Mutex<Duration>>,
-    error: Arc<Mutex<f64>>,
+    oversleep: Arc<Mutex<Duration>>,
 }
 
 impl Default for FramePaceStats {
     fn default() -> Self {
         Self {
-            oversleep: Arc::new(Mutex::new(VecDeque::from([Duration::ZERO; 240]))),
             frametime: Default::default(),
-            error: Default::default(),
+            oversleep: Default::default(),
         }
     }
 }
 
-fn framerate_limiter(
+/// Accurately sleeps until it's time to start the next frame.
+///
+/// The `spin_sleep` dependency makes it possible to get extremely accurate sleep times across
+/// platforms. Using `std::thread::sleep()` will not be precise enough, especially windows. Using a
+/// spin lock, even with `std::hint::spin_loop()`, will result in significant power usage.
+///
+/// `spin_sleep` sleeps as long as possible given the platform's sleep accuracy, and spins for the
+/// remainder. The dependency is however not WASM compatible, which is fine, because frame limiting
+/// should not be used in a browser; this would compete with the browser's frame limiter.
+pub fn framerate_limiter(
     mut timer: ResMut<FrameTimer>,
-    settings: Res<FramepaceSettings>,
     target_frametime: Res<FrametimeLimit>,
     stats: Res<FramePaceStats>,
 ) {
-    let target_frametime = target_frametime.0;
-    let system_start = Instant::now();
-    let this_render_time = system_start.duration_since(timer.render_end);
+    #[cfg(not(target_arch = "wasm32"))]
+    spin_sleep::sleep(
+        target_frametime
+            .0
+            .saturating_sub(timer.render_end.elapsed()),
+    );
 
-    let mut oversleep_lock = stats.oversleep.try_lock().unwrap();
-    let oversleep_max = oversleep_lock.iter().max().copied().unwrap_or_default();
-
-    let sleep_needed = target_frametime.saturating_sub(this_render_time);
-    let sleep_needed_coarse = sleep_needed.saturating_sub(oversleep_max);
-
-    let sleep_start = Instant::now();
-    if settings.limiter.is_enabled() && sleep_needed_coarse > Duration::ZERO {
-        #[cfg(not(target_arch = "wasm32"))]
-        std::thread::sleep(sleep_needed_coarse);
-    }
-
-    let this_oversleep = Instant::now()
-        .duration_since(sleep_start)
-        .saturating_sub(sleep_needed_coarse);
-
-    if settings.limiter.is_enabled() {
-        while Instant::now().duration_since(system_start) < sleep_needed {}
-    }
-
-    oversleep_lock.pop_back();
-    oversleep_lock.push_front(this_oversleep);
-
-    let frame_time = Instant::now().duration_since(timer.render_end);
-    *stats.frametime.try_lock().unwrap() = frame_time;
-    *stats.error.try_lock().unwrap() = frame_time.as_secs_f64() - target_frametime.as_secs_f64();
-
+    let frame_time_actual = timer.render_end.elapsed();
+    *stats.frametime.try_lock().unwrap() = frame_time_actual;
+    *stats.oversleep.try_lock().unwrap() = frame_time_actual.saturating_sub(target_frametime.0);
     timer.render_end = Instant::now();
-}
-
-/// Adds [`Diagnostics`] data from `bevy_framepace`
-pub struct FramePaceDiagnosticsPlugin;
-
-impl Plugin for FramePaceDiagnosticsPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_startup_system(Self::setup_system)
-            .add_system(Self::diagnostic_system);
-    }
-}
-
-impl FramePaceDiagnosticsPlugin {
-    /// [`DiagnosticId`] for the frametime
-    pub const FRAMEPACE_FRAMETIME: DiagnosticId =
-        DiagnosticId::from_u128(8021378406439507683279787892187089153);
-    /// [`DiagnosticId`] for oversleep
-    pub const FRAMEPACE_OVERSLEEP: DiagnosticId =
-        DiagnosticId::from_u128(7873478903246724896826890280382389054);
-    /// [`DiagnosticId`] for failures to meet frame time target
-    pub const FRAMEPACE_ERROR: DiagnosticId =
-        DiagnosticId::from_u128(978023490268634078905367093342937);
-
-    /// Initial setup for framepace diagnostics
-    pub fn setup_system(mut diagnostics: ResMut<Diagnostics>) {
-        diagnostics.add(
-            Diagnostic::new(Self::FRAMEPACE_FRAMETIME, "framepace::frametime", 20)
-                .with_suffix("ms"),
-        );
-        diagnostics.add(
-            Diagnostic::new(Self::FRAMEPACE_OVERSLEEP, "framepace::os_oversleep", 20)
-                .with_suffix("µs"),
-        );
-        diagnostics
-            .add(Diagnostic::new(Self::FRAMEPACE_ERROR, "framepace::error", 20).with_suffix("ns"));
-    }
-
-    /// Updates diagnostic data from measurements
-    pub fn diagnostic_system(
-        mut diagnostics: ResMut<Diagnostics>,
-        time: Res<Time>,
-        stats: Res<FramePaceStats>,
-    ) {
-        if time.delta_seconds_f64() == 0.0 {
-            return;
-        }
-
-        let frametime_millis = stats.frametime.try_lock().unwrap().as_secs_f64() * 1000.0;
-        let oversleep_lock = stats.oversleep.try_lock().unwrap();
-        let oversleep_micros = oversleep_lock
-            .front()
-            .map(|v| v.as_secs_f64())
-            .unwrap_or(0.0)
-            * 1000000.0;
-        let error_nanos = *stats.error.try_lock().unwrap() * 1000000000.0;
-
-        diagnostics.add_measurement(Self::FRAMEPACE_FRAMETIME, || frametime_millis);
-        diagnostics.add_measurement(Self::FRAMEPACE_OVERSLEEP, || oversleep_micros);
-        diagnostics.add_measurement(Self::FRAMEPACE_ERROR, || error_nanos);
-    }
 }

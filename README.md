@@ -19,7 +19,7 @@
 It's as simple as adding the plugin to your app:
 
 ```rs
-app.add_plugin(bevy_framepace::FramepacePlugin::default())
+app.add_plugin(bevy_framepace::FramepacePlugin);
 ```
 
 By default, the plugin will automatically measure your framerate and use this for framepacing.
@@ -52,12 +52,12 @@ library is not accurate enough for this application, especially on Windows.
 
 I intend to track the `main` branch of Bevy. PRs supporting this are welcome!
 
-| bevy | bevy_framepace |
-| ---- | -------------- |
-| 0.9  | 0.7            |
-| 0.8  | 0.5, 0.6       |
-| 0.7  | 0.4            |
-| 0.6  | 0.3            |
+| bevy | bevy_framepace      |
+| ---- | ------------------- |
+| 0.9  | 0.7, 0.8, 0.9, 0.10 |
+| 0.8  | 0.5, 0.6            |
+| 0.7  | 0.4                 |
+| 0.6  | 0.3                 |
 
 
 ## License

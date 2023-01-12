@@ -1,8 +1,4 @@
-use bevy::{diagnostic::LogDiagnosticsPlugin, prelude::*, render::camera::Projection};
-use bevy_framepace::{FramepacePlugin, FramepaceSettings, Limiter};
-use bevy_mod_picking::{
-    DebugCursorPickingPlugin, PickableBundle, PickingCameraBundle, PickingPlugin,
-};
+use bevy::{diagnostic::LogDiagnosticsPlugin, prelude::*};
 
 fn main() {
     App::new()
@@ -13,15 +9,14 @@ fn main() {
             },
             ..default()
         }))
+        // Uncomment the next line to test in reactive rendering mode
+        // .insert_resource(bevy::winit::WinitSettings::desktop_app())
         // Add the framepacing plugin
-        .add_plugin(FramepacePlugin)
+        .add_plugin(bevy_framepace::FramepacePlugin)
         // Our systems for this demo
         .add_startup_system(setup)
         .add_system(toggle_plugin)
         .add_system(update_ui)
-        // Mouse picking to visualize latency
-        .add_plugin(PickingPlugin)
-        .add_plugin(DebugCursorPickingPlugin)
         // Log framepace custom bevy diagnostics to stdout
         .add_plugin(LogDiagnosticsPlugin::default())
         .run();
@@ -30,56 +25,42 @@ fn main() {
 #[derive(Component)]
 struct EnableText;
 
-fn toggle_plugin(mut settings: ResMut<FramepaceSettings>, input: Res<Input<KeyCode>>) {
+fn toggle_plugin(
+    mut settings: ResMut<bevy_framepace::FramepaceSettings>,
+    input: Res<Input<KeyCode>>,
+) {
     if input.just_pressed(KeyCode::Space) {
+        use bevy_framepace::Limiter;
         settings.limiter = match settings.limiter {
             Limiter::Auto => Limiter::Off,
-            Limiter::Off => Limiter::from_framerate(30.0),
+            Limiter::Off => Limiter::from_framerate(20.0),
             Limiter::Manual(_) => Limiter::Auto,
         }
     }
 }
 
-fn update_ui(mut text: Query<&mut Text, With<EnableText>>, settings: Res<FramepaceSettings>) {
+fn update_ui(
+    mut text: Query<&mut Text, With<EnableText>>,
+    settings: Res<bevy_framepace::FramepaceSettings>,
+) {
     text.single_mut().sections[1].value = format!("{}", settings.limiter);
 }
 
 /// set up the scene
-fn setup(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut windows: ResMut<Windows>,
-    asset_server: Res<AssetServer>,
-) {
+fn setup(mut commands: Commands, mut windows: ResMut<Windows>, asset_server: Res<AssetServer>) {
     windows
         .get_primary_mut()
         .unwrap()
         .set_cursor_icon(CursorIcon::Crosshair);
-    commands.spawn((
-        PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Plane { size: 250.0 })),
-            material: materials.add(Color::BLACK.into()),
-            ..Default::default()
-        },
-        PickableBundle::default(),
-    ));
-    commands.spawn((
-        Camera3dBundle {
-            transform: Transform::from_xyz(0.0, 10.0, 0.0).looking_at(Vec3::ZERO, Vec3::Z),
-            projection: Projection::Orthographic(OrthographicProjection {
-                scale: 0.01,
-                ..Default::default()
-            }),
-            ..Default::default()
-        },
-        PickingCameraBundle::default(),
-    ));
+    commands.spawn(Camera3dBundle {
+        transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
+        ..default()
+    });
     // UI
     let font = asset_server.load("fonts/FiraMono-Medium.ttf");
     let style = TextStyle {
         font,
-        font_size: 40.0,
+        font_size: 60.0,
         color: Color::WHITE,
     };
     commands.spawn((
@@ -92,7 +73,7 @@ fn setup(
                 // Construct a `Vec` of `TextSection`s
                 sections: vec![
                     TextSection {
-                        value: " Vsync: On\n Frame pacing: ".to_string(),
+                        value: " Frame pacing: ".to_string(),
                         style: style.clone(),
                     },
                     TextSection {
@@ -100,7 +81,7 @@ fn setup(
                         style: style.clone(),
                     },
                     TextSection {
-                        value: "\n [press space to switch]".to_string(),
+                        value: "\n [press space]".to_string(),
                         style,
                     },
                 ],
