@@ -209,19 +209,10 @@ fn extract_resources(
 }
 
 /// Holds frame time measurements for framepacing diagnostics
-#[derive(Clone, Debug, Resource)]
+#[derive(Clone, Debug, Default, Resource)]
 pub struct FramePaceStats {
     frametime: Arc<Mutex<Duration>>,
     oversleep: Arc<Mutex<Duration>>,
-}
-
-impl Default for FramePaceStats {
-    fn default() -> Self {
-        Self {
-            frametime: Default::default(),
-            oversleep: Default::default(),
-        }
-    }
 }
 
 /// Accurately sleeps until it's time to start the next frame.
