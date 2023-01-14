@@ -1,24 +1,15 @@
-use bevy::{diagnostic::LogDiagnosticsPlugin, prelude::*};
+use bevy::prelude::*;
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            window: WindowDescriptor {
-                fit_canvas_to_parent: true,
-                ..default()
-            },
-            ..default()
-        }))
-        // Uncomment the next line to test in reactive rendering mode
-        // .insert_resource(bevy::winit::WinitSettings::desktop_app())
-        // Add the framepacing plugin
+        .add_plugins(DefaultPlugins)
+        .add_plugin(bevy::diagnostic::LogDiagnosticsPlugin::default())
         .add_plugin(bevy_framepace::FramepacePlugin)
-        // Our systems for this demo
+        .add_plugin(bevy_framepace::debug::DiagnosticsPlugin)
+        .add_plugin(bevy_framepace::debug::CursorPlugin)
         .add_startup_system(setup)
         .add_system(toggle_plugin)
         .add_system(update_ui)
-        // Log framepace custom bevy diagnostics to stdout
-        .add_plugin(LogDiagnosticsPlugin::default())
         .run();
 }
 
@@ -52,10 +43,7 @@ fn setup(mut commands: Commands, mut windows: ResMut<Windows>, asset_server: Res
         .get_primary_mut()
         .unwrap()
         .set_cursor_icon(CursorIcon::Crosshair);
-    commands.spawn(Camera3dBundle {
-        transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
-        ..default()
-    });
+    commands.spawn((Camera3dBundle::default(),));
     // UI
     let font = asset_server.load("fonts/FiraMono-Medium.ttf");
     let style = TextStyle {
@@ -64,31 +52,20 @@ fn setup(mut commands: Commands, mut windows: ResMut<Windows>, asset_server: Res
         color: Color::WHITE,
     };
     commands.spawn((
-        TextBundle {
-            style: Style {
-                align_self: AlignSelf::FlexStart,
-                ..default()
+        TextBundle::from_sections(vec![
+            TextSection {
+                value: "Frame pacing: ".to_string(),
+                style: style.clone(),
             },
-            text: Text {
-                // Construct a `Vec` of `TextSection`s
-                sections: vec![
-                    TextSection {
-                        value: " Frame pacing: ".to_string(),
-                        style: style.clone(),
-                    },
-                    TextSection {
-                        value: "".to_string(),
-                        style: style.clone(),
-                    },
-                    TextSection {
-                        value: "\n [press space]".to_string(),
-                        style,
-                    },
-                ],
-                ..default()
+            TextSection {
+                value: "".to_string(),
+                style: style.clone(),
             },
-            ..default()
-        },
+            TextSection {
+                value: "\n[press space]".to_string(),
+                style,
+            },
+        ]),
         EnableText,
     ));
 }

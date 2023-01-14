@@ -1,3 +1,5 @@
+//! Adds diagnostic logging and a cursor for debugging.
+
 use bevy::{
     core_pipeline::clear_color::ClearColorConfig,
     diagnostic::{Diagnostic, DiagnosticId, Diagnostics},
@@ -5,18 +7,16 @@ use bevy::{
 };
 
 /// Adds [`Diagnostics`] data from `bevy_framepace`
-pub struct FramePaceDiagnosticsPlugin;
+pub struct DiagnosticsPlugin;
 
-impl Plugin for FramePaceDiagnosticsPlugin {
+impl Plugin for DiagnosticsPlugin {
     fn build(&self, app: &mut App) {
         app.add_startup_system(Self::setup_system)
-            .add_startup_system(Self::setup_cursor)
-            .add_system(Self::update_cursor)
             .add_system(Self::diagnostic_system);
     }
 }
 
-impl FramePaceDiagnosticsPlugin {
+impl DiagnosticsPlugin {
     /// [`DiagnosticId`] for the frametime
     pub const FRAMEPACE_FRAMETIME: DiagnosticId =
         DiagnosticId::from_u128(8021378406439507683279787892187089153);
@@ -52,23 +52,46 @@ impl FramePaceDiagnosticsPlugin {
         diagnostics.add_measurement(Self::FRAMEPACE_FRAMETIME, || frametime_millis);
         diagnostics.add_measurement(Self::FRAMEPACE_OVERSLEEP, || error_micros);
     }
+}
 
-    ///
+/// Marks the entity to use for the framepace debug cursor.
+#[derive(Component, Debug, Reflect)]
+pub struct DebugCursor;
+
+/// Marks the camera to use for rendering the framepace debug cursor.
+#[derive(Component, Debug, Reflect)]
+pub struct DebugCursorCamera;
+
+/// Adds a simple debug cursor for quickly testing latency.
+pub struct CursorPlugin;
+
+impl Plugin for CursorPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_startup_system(Self::setup_cursor)
+            .add_system(Self::update_cursor);
+    }
+}
+
+impl CursorPlugin {
+    /// Spawns the [`DebugCursorCamera`] and [`DebugCursor`] entities.
     pub fn setup_cursor(
         mut commands: Commands,
         mut meshes: ResMut<Assets<Mesh>>,
         mut materials: ResMut<Assets<ColorMaterial>>,
     ) {
-        commands.spawn(Camera2dBundle {
-            camera: Camera {
-                priority: 100,
+        commands.spawn((
+            Camera2dBundle {
+                camera: Camera {
+                    priority: 100,
+                    ..Default::default()
+                },
+                camera_2d: Camera2d {
+                    clear_color: ClearColorConfig::None,
+                },
                 ..Default::default()
             },
-            camera_2d: Camera2d {
-                clear_color: ClearColorConfig::None,
-            },
-            ..Default::default()
-        });
+            DebugCursorCamera,
+        ));
         commands.spawn((
             bevy::sprite::MaterialMesh2dBundle {
                 mesh: meshes.add(shape::Circle::new(10.0).into()).into(),
@@ -80,7 +103,7 @@ impl FramePaceDiagnosticsPlugin {
         ));
     }
 
-    ///
+    /// Updates the position of the [`DebugCursor`].
     pub fn update_cursor(
         windows: Res<Windows>,
         mut cursor: Query<&mut Transform, With<DebugCursor>>,
@@ -91,7 +114,3 @@ impl FramePaceDiagnosticsPlugin {
         }
     }
 }
-
-///
-#[derive(Component)]
-pub struct DebugCursor;

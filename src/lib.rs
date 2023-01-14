@@ -20,7 +20,7 @@
 //! no difference in motion-to-photon latency when limited to 10fps or 120fps.
 //!
 //! ```none
-//!      same                        same
+//!       same                        same
 //!  /-- latency --\             /-- latency --\
 //!  input -> render -> sleep    input -> render -> sleeeeeeeeeeeeeeeeeeeeeeeep
 //!  \----- event loop -----/    \---------------- event loop ----------------/
@@ -43,8 +43,8 @@ use std::{
     time::Duration,
 };
 
-#[cfg(feature = "debug")]
-mod debug;
+#[cfg(feature = "framepace_debug")]
+pub mod debug;
 
 /// Adds framepacing and framelimiting functionality to your [`App`].
 #[derive(Debug, Clone, Component)]
@@ -57,8 +57,6 @@ impl Plugin for FramepacePlugin {
 
         #[cfg(not(target_arch = "wasm32"))]
         app.add_system_to_stage(CoreStage::Update, get_display_refresh_rate);
-        #[cfg(feature = "debug")]
-        app.add_plugin(debug::FramePaceDiagnosticsPlugin);
         app.sub_app_mut(RenderApp)
             .insert_resource(FrameTimer::default())
             .add_system_to_stage(RenderStage::Extract, extract_resources)
@@ -79,7 +77,7 @@ impl Plugin for FramepacePlugin {
 }
 
 /// Framepacing plugin configuration.
-#[derive(Debug, Clone, Resource)]
+#[derive(Debug, Clone, Resource, Reflect)]
 pub struct FramepaceSettings {
     /// Configures the framerate limiting strategy.
     pub limiter: Limiter,
@@ -100,7 +98,7 @@ impl Default for FramepaceSettings {
 }
 
 /// Configures the framelimiting technique for the app.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Reflect)]
 pub enum Limiter {
     /// Uses the window's refresh rate to set the frametime limit, updating when the window changes
     /// monitors.
@@ -140,7 +138,7 @@ impl std::fmt::Display for Limiter {
 pub struct FrametimeLimit(Duration);
 
 /// Tracks the instant of the end of the previous frame.
-#[derive(Debug, Resource)]
+#[derive(Debug, Resource, Reflect)]
 pub struct FrameTimer {
     render_end: Instant,
 }
