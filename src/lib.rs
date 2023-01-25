@@ -137,7 +137,7 @@ impl std::fmt::Display for Limiter {
 }
 
 /// Current frametime limit based on settings and monitor refresh rate.
-#[derive(Debug, Default, Clone, Reflect,  FromReflect, Resource,)]
+#[derive(Debug, Default, Clone, Reflect, FromReflect, Resource)]
 #[reflect(Resource)]
 pub struct FrametimeLimit(Duration);
 
