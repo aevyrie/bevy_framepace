@@ -51,6 +51,8 @@ pub mod debug;
 pub struct FramepacePlugin;
 impl Plugin for FramepacePlugin {
     fn build(&self, app: &mut App) {
+        app.register_type::<FramepaceSettings>();
+
         app.init_resource::<FramepaceSettings>()
             .init_resource::<FrametimeLimit>()
             .init_resource::<FramePaceStats>();
@@ -77,7 +79,8 @@ impl Plugin for FramepacePlugin {
 }
 
 /// Framepacing plugin configuration.
-#[derive(Debug, Clone, Resource, Reflect)]
+#[derive(Debug, Clone, Resource, Reflect, FromReflect)]
+#[reflect(Resource)]
 pub struct FramepaceSettings {
     /// Configures the framerate limiting strategy.
     pub limiter: Limiter,
@@ -98,7 +101,7 @@ impl Default for FramepaceSettings {
 }
 
 /// Configures the framelimiting technique for the app.
-#[derive(Debug, Clone, Reflect)]
+#[derive(Debug, Clone, Reflect, FromReflect)]
 pub enum Limiter {
     /// Uses the window's refresh rate to set the frametime limit, updating when the window changes
     /// monitors.
@@ -134,7 +137,8 @@ impl std::fmt::Display for Limiter {
 }
 
 /// Current frametime limit based on settings and monitor refresh rate.
-#[derive(Debug, Default, Clone, Reflect, Resource)]
+#[derive(Debug, Default, Clone, Reflect, FromReflect, Resource)]
+#[reflect(Resource)]
 pub struct FrametimeLimit(Duration);
 
 /// Tracks the instant of the end of the previous frame.
