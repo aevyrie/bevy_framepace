@@ -24,7 +24,7 @@ fn toggle_plugin(
         use bevy_framepace::Limiter;
         settings.limiter = match settings.limiter {
             Limiter::Auto => Limiter::Off,
-            Limiter::Off => Limiter::from_framerate(20.0),
+            Limiter::Off => Limiter::from_framerate(30.0),
             Limiter::Manual(_) => Limiter::Auto,
         }
     }
@@ -38,11 +38,8 @@ fn update_ui(
 }
 
 /// set up the scene
-fn setup(mut commands: Commands, mut windows: ResMut<Windows>, asset_server: Res<AssetServer>) {
-    windows
-        .get_primary_mut()
-        .unwrap()
-        .set_cursor_icon(CursorIcon::Crosshair);
+fn setup(mut commands: Commands, mut windows: Query<&mut Window>, asset_server: Res<AssetServer>) {
+    windows.iter_mut().next().unwrap().cursor.icon = CursorIcon::Crosshair;
     commands.spawn((Camera3dBundle::default(),));
     // UI
     let font = asset_server.load("fonts/FiraMono-Medium.ttf");

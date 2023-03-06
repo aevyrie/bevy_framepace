@@ -82,7 +82,7 @@ impl CursorPlugin {
         commands.spawn((
             Camera2dBundle {
                 camera: Camera {
-                    priority: 100,
+                    order: 100,
                     ..Default::default()
                 },
                 camera_2d: Camera2d {
@@ -105,11 +105,11 @@ impl CursorPlugin {
 
     /// Updates the position of the [`DebugCursor`].
     pub fn update_cursor(
-        windows: Res<Windows>,
+        windows: Query<&Window>,
         mut cursor: Query<&mut Transform, With<DebugCursor>>,
     ) {
-        if let Some(pos) = windows.primary().cursor_position() {
-            let offset = -Vec2::new(windows.primary().width(), windows.primary().height()) / 2.0;
+        if let Some(pos) = windows.single().cursor_position() {
+            let offset = -Vec2::new(windows.single().width(), windows.single().height()) / 2.0;
             cursor.single_mut().translation = (pos + offset).extend(0.0);
         }
     }

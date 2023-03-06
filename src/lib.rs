@@ -4,14 +4,12 @@
 //! # How it works
 //!
 //! This works by sleeping the app immediately before the event loop starts. In doing so, this
-//! minimizes the time from when user input is captured (start of event loop), to when the rendered
-//! frame using this input data is presented (`RenderStage::Render`). Because the event loop is,
-//! well, a loop, it is equally accurate to think of this as sleeping at the beginning of the frame,
-//! before input is captured. Graphically, it looks like this:
+//! minimizes the time from when user input is captured (start of event loop), to when the frame is
+//! presented on screen. Graphically, it looks like this:
 //!
 //! ```none
-//!  /-- latency --\             /-- latency --\
-//!  input -> render -> sleep -> input -> render -> sleep
+//!           /-- latency --\             /-- latency --\
+//!  sleep -> input -> render -> sleep -> input -> render
 //!  \----- event loop -----/    \----- event loop -----/
 //! ```
 //!
@@ -20,9 +18,9 @@
 //! no difference in motion-to-photon latency when limited to 10fps or 120fps.
 //!
 //! ```none
-//!       same                        same
-//!  /-- latency --\             /-- latency --\
-//!  input -> render -> sleep    input -> render -> sleeeeeeeeeeeeeeeeeeeeeeeep
+//!                same                                              same
+//!           /-- latency --\                                   /-- latency --\
+//!  sleep -> input -> render -> sleeeeeeeeeeeeeeeeeeeeeeeep -> input -> render
 //!  \----- event loop -----/    \---------------- event loop ----------------/
 //!           60 fps                           limited to 10 fps
 //! ```
@@ -31,12 +29,7 @@
 
 #[cfg(not(target_arch = "wasm32"))]
 use bevy::winit::WinitWindows;
-use bevy::{
-    ecs::schedule::ShouldRun,
-    prelude::*,
-    render::{Extract, RenderApp, RenderStage},
-    utils::Instant,
-};
+use bevy::{prelude::*, render::pipelined_rendering::RenderExtractApp, utils::Instant};
 
 use std::{
     sync::{Arc, Mutex},
@@ -53,27 +46,28 @@ impl Plugin for FramepacePlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<FramepaceSettings>();
 
-        app.init_resource::<FramepaceSettings>()
-            .init_resource::<FrametimeLimit>()
-            .init_resource::<FramePaceStats>();
+        let limit = FrametimeLimit::default();
+        let settings = FramepaceSettings::default();
+        let settings_proxy = FramepaceSettingsProxy::default();
+        let stats = FramePaceStats::default();
+
+        app.insert_resource(settings.clone())
+            .insert_resource(settings_proxy.clone())
+            .insert_resource(limit.clone())
+            .insert_resource(stats.clone())
+            .add_system(update_proxy_resources);
 
         #[cfg(not(target_arch = "wasm32"))]
-        app.add_system_to_stage(CoreStage::Update, get_display_refresh_rate);
-        app.sub_app_mut(RenderApp)
+        app.add_system(get_display_refresh_rate);
+
+        app.sub_app_mut(RenderExtractApp)
             .insert_resource(FrameTimer::default())
-            .add_system_to_stage(RenderStage::Extract, extract_resources)
-            .add_system_to_stage(
-                RenderStage::Cleanup,
-                // We need this system to run at the end, immediately before the event loop restarts
+            .insert_resource(settings_proxy)
+            .insert_resource(limit)
+            .insert_resource(stats)
+            .add_system(
                 framerate_limiter
-                    .at_end()
-                    .with_run_criteria(|settings: Res<FramepaceSettings>| {
-                        if settings.limiter.is_enabled() {
-                            ShouldRun::Yes
-                        } else {
-                            ShouldRun::No
-                        }
-                    }),
+                    .run_if(|settings: Res<FramepaceSettingsProxy>| settings.is_enabled()),
             );
     }
 }
@@ -100,11 +94,32 @@ impl Default for FramepaceSettings {
     }
 }
 
+#[derive(Default, Debug, Clone, Resource)]
+struct FramepaceSettingsProxy {
+    /// Configures the framerate limiting strategy.
+    limiter: Arc<Mutex<Limiter>>,
+}
+
+impl FramepaceSettingsProxy {
+    fn is_enabled(&self) -> bool {
+        self.limiter.try_lock().iter().any(|l| l.is_enabled())
+    }
+}
+
+fn update_proxy_resources(settings: Res<FramepaceSettings>, proxy: Res<FramepaceSettingsProxy>) {
+    if settings.is_changed() {
+        if let Ok(mut limiter) = proxy.limiter.try_lock() {
+            *limiter = settings.limiter.clone();
+        }
+    }
+}
+
 /// Configures the framelimiting technique for the app.
-#[derive(Debug, Clone, Reflect, FromReflect)]
+#[derive(Debug, Default, Clone, Reflect, FromReflect)]
 pub enum Limiter {
     /// Uses the window's refresh rate to set the frametime limit, updating when the window changes
     /// monitors.
+    #[default]
     Auto,
     /// Set a fixed manual frametime limit. This should be greater than the monitors frametime
     /// (`1.0 / monitor frequency`).
@@ -137,19 +152,18 @@ impl std::fmt::Display for Limiter {
 }
 
 /// Current frametime limit based on settings and monitor refresh rate.
-#[derive(Debug, Default, Clone, Reflect, FromReflect, Resource)]
-#[reflect(Resource)]
-pub struct FrametimeLimit(Duration);
+#[derive(Debug, Default, Clone, Resource)]
+struct FrametimeLimit(Arc<Mutex<Duration>>);
 
 /// Tracks the instant of the end of the previous frame.
 #[derive(Debug, Resource, Reflect)]
 pub struct FrameTimer {
-    render_end: Instant,
+    sleep_end: Instant,
 }
 impl Default for FrameTimer {
     fn default() -> Self {
         FrameTimer {
-            render_end: Instant::now(),
+            sleep_end: Instant::now(),
         }
     }
 }
@@ -158,14 +172,14 @@ impl Default for FrameTimer {
 fn get_display_refresh_rate(
     settings: Res<FramepaceSettings>,
     winit: NonSend<WinitWindows>,
-    windows: Res<Windows>,
-    mut frame_limit: ResMut<FrametimeLimit>,
+    windows: Query<Entity, With<Window>>,
+    frame_limit: Res<FrametimeLimit>,
 ) {
-    if !settings.is_changed() && !winit.is_changed() {
+    if !(settings.is_changed() || winit.is_changed()) {
         return;
     }
     let new_frametime = match settings.limiter {
-        Limiter::Auto => match detect_frametime(winit, windows) {
+        Limiter::Auto => match detect_frametime(winit, windows.iter()) {
             Some(frametime) => frametime,
             None => return,
         },
@@ -176,38 +190,34 @@ fn get_display_refresh_rate(
         }
     };
 
-    if new_frametime != frame_limit.0 {
-        info!("Frametime limit changed to: {:?}", new_frametime);
-        frame_limit.0 = new_frametime;
+    if let Ok(mut limit) = frame_limit.0.try_lock() {
+        if new_frametime != *limit {
+            info!("Frametime limit changed to: {:?}", new_frametime);
+            *limit = new_frametime;
+        }
     }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn detect_frametime(winit: NonSend<WinitWindows>, windows: Res<Windows>) -> Option<Duration> {
+fn detect_frametime(
+    winit: NonSend<WinitWindows>,
+    windows: impl Iterator<Item = Entity>,
+) -> Option<Duration> {
     let best_framerate = {
-        let monitor = winit
-            .get_window(windows.get_primary()?.id())?
-            .current_monitor()?;
-
-        // We need to subtract 0.5 because winit only reads framerate to the nearest 1 hertz. To
-        // prevent frames building up, adding latency, we need to use the most conservative possible
-        // refresh rate that could round up to the integer value reported by winit.
-        bevy::winit::get_best_videomode(&monitor).refresh_rate_millihertz() as f64 / 1000.0 - 0.5
+        windows
+            .filter_map(|e| winit.get_window(e))
+            .filter_map(|w| w.current_monitor())
+            .map(|monitor| bevy::winit::get_best_videomode(&monitor).refresh_rate_millihertz())
+            .min()? as f64
+            / 1000.0
+            - 0.5 // We need to subtract 0.5 because winit only reads framerate to the nearest 1
+                  // hertz. To prevent frames building up, adding latency, we need to use the most
+                  // conservative possible refresh rate that could round up to the integer value
+                  // reported by winit.
     };
 
     let best_frametime = Duration::from_secs_f64(1.0 / best_framerate);
     Some(best_frametime)
-}
-
-fn extract_resources(
-    mut commands: Commands,
-    settings: Extract<Res<FramepaceSettings>>,
-    framerate_limit: Extract<Res<FrametimeLimit>>,
-    stats: Extract<Res<FramePaceStats>>,
-) {
-    commands.insert_resource(settings.to_owned());
-    commands.insert_resource(framerate_limit.to_owned());
-    commands.insert_resource(stats.to_owned());
 }
 
 /// Holds frame time measurements for framepacing diagnostics
@@ -226,20 +236,29 @@ pub struct FramePaceStats {
 /// `spin_sleep` sleeps as long as possible given the platform's sleep accuracy, and spins for the
 /// remainder. The dependency is however not WASM compatible, which is fine, because frame limiting
 /// should not be used in a browser; this would compete with the browser's frame limiter.
-pub fn framerate_limiter(
+fn framerate_limiter(
     mut timer: ResMut<FrameTimer>,
     target_frametime: Res<FrametimeLimit>,
     stats: Res<FramePaceStats>,
 ) {
     #[cfg(not(target_arch = "wasm32"))]
-    spin_sleep::sleep(
-        target_frametime
-            .0
-            .saturating_sub(timer.render_end.elapsed()),
-    );
+    if let Ok(limit) = target_frametime.0.try_lock() {
+        let oversleep = stats
+            .oversleep
+            .try_lock()
+            .as_deref()
+            .cloned()
+            .unwrap_or_default();
+        let sleep_time = limit.saturating_sub(timer.sleep_end.elapsed() + oversleep);
+        spin_sleep::sleep(sleep_time);
 
-    let frame_time_actual = timer.render_end.elapsed();
-    *stats.frametime.try_lock().unwrap() = frame_time_actual;
-    *stats.oversleep.try_lock().unwrap() = frame_time_actual.saturating_sub(target_frametime.0);
-    timer.render_end = Instant::now();
+        let frame_time_actual = timer.sleep_end.elapsed();
+        timer.sleep_end = Instant::now();
+        if let Ok(mut frametime) = stats.frametime.try_lock() {
+            *frametime = frame_time_actual;
+        }
+        if let Ok(mut oversleep) = stats.oversleep.try_lock() {
+            *oversleep = frame_time_actual.saturating_sub(*limit);
+        }
+    };
 }
