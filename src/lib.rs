@@ -51,7 +51,7 @@ impl Plugin for FramepacePlugin {
         let settings_proxy = FramepaceSettingsProxy::default();
         let stats = FramePaceStats::default();
 
-        app.insert_resource(settings.clone())
+        app.insert_resource(settings)
             .insert_resource(settings_proxy.clone())
             .insert_resource(limit.clone())
             .insert_resource(stats.clone())
