@@ -52,13 +52,13 @@ library is not accurate enough for this application, especially on Windows.
 
 I intend to track the `main` branch of Bevy. PRs supporting this are welcome!
 
-| bevy | bevy_framepace      |
-| ---- | ------------------- |
-| 0.10 | 0.11                |
-| 0.9  | 0.7, 0.8, 0.9, 0.10 |
-| 0.8  | 0.5, 0.6            |
-| 0.7  | 0.4                 |
-| 0.6  | 0.3                 |
+| bevy | bevy_framepace            |
+| ---- | -------------------       |
+| 0.10 | 0.12                      |
+| 0.9  | 0.7, 0.8, 0.9, 0.10, 0.11 |
+| 0.8  | 0.5, 0.6                  |
+| 0.7  | 0.4                       |
+| 0.6  | 0.3                       |
 
 
 ## License
