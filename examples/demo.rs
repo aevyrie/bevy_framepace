@@ -1,8 +1,9 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, render::pipelined_rendering::PipelinedRenderingPlugin};
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
+        // Disable pipelined rendering to prioritize latency reduction
+        .add_plugins(DefaultPlugins.build().disable::<PipelinedRenderingPlugin>())
         .add_plugin(bevy::diagnostic::LogDiagnosticsPlugin::default())
         .add_plugin(bevy_framepace::FramepacePlugin)
         .add_plugin(bevy_framepace::debug::DiagnosticsPlugin)
