@@ -29,7 +29,11 @@
 
 #[cfg(not(target_arch = "wasm32"))]
 use bevy::winit::WinitWindows;
-use bevy::{prelude::*, render::pipelined_rendering::RenderExtractApp, utils::Instant};
+use bevy::{
+    prelude::*,
+    render::{pipelined_rendering::RenderExtractApp, RenderApp, RenderSet},
+    utils::Instant,
+};
 
 use std::{
     sync::{Arc, Mutex},
@@ -60,15 +64,29 @@ impl Plugin for FramepacePlugin {
         #[cfg(not(target_arch = "wasm32"))]
         app.add_system(get_display_refresh_rate);
 
-        app.sub_app_mut(RenderExtractApp)
-            .insert_resource(FrameTimer::default())
-            .insert_resource(settings_proxy)
-            .insert_resource(limit)
-            .insert_resource(stats)
-            .add_system(
-                framerate_limiter
-                    .run_if(|settings: Res<FramepaceSettingsProxy>| settings.is_enabled()),
-            );
+        if let Ok(sub_app) = app.get_sub_app_mut(RenderExtractApp) {
+            sub_app
+                .insert_resource(FrameTimer::default())
+                .insert_resource(settings_proxy)
+                .insert_resource(limit)
+                .insert_resource(stats)
+                .add_system(
+                    framerate_limiter
+                        .run_if(|settings: Res<FramepaceSettingsProxy>| settings.is_enabled()),
+                );
+        } else {
+            app.sub_app_mut(RenderApp)
+                .insert_resource(FrameTimer::default())
+                .insert_resource(settings_proxy)
+                .insert_resource(limit)
+                .insert_resource(stats)
+                .add_system(
+                    framerate_limiter
+                        .in_set(RenderSet::Cleanup)
+                        .after(World::clear_entities)
+                        .run_if(|settings: Res<FramepaceSettingsProxy>| settings.is_enabled()),
+                );
+        }
     }
 }
 
@@ -156,7 +174,7 @@ impl std::fmt::Display for Limiter {
 struct FrametimeLimit(Arc<Mutex<Duration>>);
 
 /// Tracks the instant of the end of the previous frame.
-#[derive(Debug, Resource, Reflect)]
+#[derive(Debug, Clone, Resource, Reflect)]
 pub struct FrameTimer {
     sleep_end: Instant,
 }
@@ -241,16 +259,18 @@ fn framerate_limiter(
     target_frametime: Res<FrametimeLimit>,
     stats: Res<FramePaceStats>,
 ) {
-    #[cfg(not(target_arch = "wasm32"))]
     if let Ok(limit) = target_frametime.0.try_lock() {
-        let oversleep = stats
-            .oversleep
-            .try_lock()
-            .as_deref()
-            .cloned()
-            .unwrap_or_default();
-        let sleep_time = limit.saturating_sub(timer.sleep_end.elapsed() + oversleep);
-        spin_sleep::sleep(sleep_time);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let oversleep = stats
+                .oversleep
+                .try_lock()
+                .as_deref()
+                .cloned()
+                .unwrap_or_default();
+            let sleep_time = limit.saturating_sub(timer.sleep_end.elapsed() + oversleep);
+            spin_sleep::sleep(sleep_time);
+        }
 
         let frame_time_actual = timer.sleep_end.elapsed();
         timer.sleep_end = Instant::now();
