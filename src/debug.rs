@@ -41,8 +41,8 @@ impl DiagnosticsPlugin {
             return;
         }
 
-        let frametime_millis = stats.frametime.try_lock().unwrap().as_secs_f64() * 1_000_f64;
-        let error_micros = stats.oversleep.try_lock().unwrap().as_secs_f64() * 1_000_000_f64;
+        let frametime_millis = stats.get_last_frame_time().as_secs_f64() * 1_000_f64;
+        let error_micros = stats.get_last_frame_oversleep().as_secs_f64() * 1_000_000_f64;
 
         diagnostics.add_measurement(Self::FRAMEPACE_FRAMETIME, || frametime_millis);
         diagnostics.add_measurement(Self::FRAMEPACE_OVERSLEEP, || error_micros);

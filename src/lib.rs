@@ -36,6 +36,7 @@ use bevy::{
 };
 
 use std::{
+    collections::VecDeque,
     ops::Deref,
     sync::{Arc, Mutex},
     time::Duration,
@@ -43,6 +44,11 @@ use std::{
 
 #[cfg(feature = "framepace_debug")]
 pub mod debug;
+
+const FRAMEPACE_MAX_FRAME_RECORDS: u16 = 20;
+const FRAMEPACE_PID_KP: f32 = 1.;
+const FRAMEPACE_PID_KI: f32 = 0.;
+const FRAMEPACE_PID_KD: f32 = 0.;
 
 /// Adds framepacing and framelimiting functionality to your [`App`].
 #[derive(Debug, Clone, Component)]
@@ -54,7 +60,13 @@ impl Plugin for FramepacePlugin {
         let limit          = FrametimeLimit::default();
         let settings       = FramepaceSettings::default();
         let settings_proxy = FramepaceSettingsProxy::default();
-        let stats          = FramePaceStats::default();
+        let stats          = 
+            FramePaceStats::new(
+                FRAMEPACE_MAX_FRAME_RECORDS,
+                FRAMEPACE_PID_KP,
+                FRAMEPACE_PID_KI,
+                FRAMEPACE_PID_KD
+            );
 
         app.insert_resource(settings)
             .insert_resource(settings_proxy.clone())
@@ -241,27 +253,104 @@ fn detect_frametime(
 /// Holds frame time measurements for framepacing diagnostics
 #[derive(Clone, Debug, Default, Resource)]
 pub struct FramePaceStats {
-    frametime: Arc<Mutex<Duration>>,
-    oversleep: Arc<Mutex<Duration>>,
+    frametime_record: Arc<Mutex<VecDeque<Duration>>>,
+    oversleep_record: Arc<Mutex<VecDeque<Duration>>>,
+    oversleep_sum:    Arc<Mutex<f64>>,
+
+    max_frame_records: u16,
+
+    pid_kp: f32,
+    pid_ki: f32,
+    pid_kd: f32,
 }
 
 impl FramePaceStats {
-    fn add_frame_stats(&self, new_frametime: Duration, new_oversleep: Duration) {
-        let Ok(mut frametime) = self.frametime.try_lock() else { return };
-        *frametime = new_frametime;
+    fn new(max_frame_records: u16, pid_kp: f32, pid_ki: f32, pid_kd: f32) -> FramePaceStats {
+        #[cfg(not(target_arch = "wasm32"))]
+        if max_frame_records == 0 { panic!("framepace: max frame records is zero!"); }
 
-        let Ok(mut oversleep) = self.oversleep.try_lock() else { return };
-        *oversleep = new_oversleep;
+        let mut stats = FramePaceStats::default();
+        stats.max_frame_records = max_frame_records;
+        stats.pid_kp            = pid_kp;
+        stats.pid_ki            = pid_ki;
+        stats.pid_kd            = pid_kd;
+        stats
     }
 
-    fn get_sleep_adjustment(&self, target_frametime: Duration, already_elapsed_time: Duration) -> Duration {
-        let oversleep = self
-            .oversleep
-            .try_lock()
-            .as_deref()
-            .cloned()
-            .unwrap_or_default();
-        target_frametime.saturating_sub(already_elapsed_time + oversleep)
+    fn add_frame_stats(&self, new_frametime: Duration, new_oversleep: Duration) {
+        let Ok(mut frametime_record) = self.frametime_record.try_lock() else { return };
+        let Ok(mut oversleep_record) = self.oversleep_record.try_lock() else { return };
+        let Ok(mut oversleep_sum)    = self.oversleep_sum.try_lock()    else { return };
+        frametime_record.push_back(new_frametime);
+        oversleep_record.push_back(new_oversleep);
+        *oversleep_sum = *oversleep_sum + new_oversleep.as_secs_f64();
+
+        while frametime_record.len() > (self.max_frame_records as usize) {
+            frametime_record.pop_front();
+        }
+        while oversleep_record.len() > (self.max_frame_records as usize) {
+            *oversleep_sum -= oversleep_record.get(0).unwrap().as_secs_f64();
+            oversleep_record.pop_front();
+        }
+    }
+
+    fn get_oversleep_sum(&self) -> f64 {
+        let Ok(oversleep_sum) = self.oversleep_sum.try_lock() else { return 0f64 };
+        *oversleep_sum
+    }
+
+    fn get_last_oversleep_delta(&self) -> f64 {
+        let Ok(oversleep_record) = self.oversleep_record.try_lock() else { return 0f64 };
+        match oversleep_record.len()
+        {
+            0 => 0f64,
+            1 => 0f64 - oversleep_record.back().unwrap().as_secs_f64(),
+            _ => {
+                oversleep_record.get(oversleep_record.len() - 2).unwrap().as_secs_f64() -
+                    oversleep_record.back().unwrap().as_secs_f64()
+            }
+        }
+    }
+
+    fn get_requested_sleep_duration(&self, target_frametime: Duration, already_elapsed_time: Duration) -> Duration {
+        // remaining_time = target - elapsed
+        // sleep_duration = remaining_time - adjustment
+        // adjustment = k_p * [previous oversleep] + k_i * [sum(previous oversleeps)] + k_d * [delta(previous two oversleeps)]
+        let remaining_time = target_frametime.saturating_sub(already_elapsed_time).as_secs_f64();
+        if remaining_time == 0.0 { return Duration::default() }
+
+        let mut adjustment = 0f64;
+        adjustment = adjustment + (self.pid_kp as f64) * self.get_last_frame_oversleep().as_secs_f64();
+        adjustment = adjustment + (self.pid_ki as f64) * self.get_oversleep_sum();
+        adjustment = adjustment + (self.pid_kd as f64) * self.get_last_oversleep_delta();
+
+        let sleep_duration = remaining_time - adjustment;
+        if sleep_duration <= 0.0 { return Duration::default() }
+        Duration::from_secs_f64(sleep_duration)
+    }
+
+    /// Get the frame time of the last frame.
+    pub fn get_last_frame_time(&self) -> Duration {
+        let Ok(frametime_record)        = self.frametime_record.try_lock() else { return Duration::default() };
+        let Some(most_recent_frametime) = frametime_record.back()          else { return Duration::default() };
+        *most_recent_frametime
+    }
+
+    /// Get the amount of time that the limiter over-slept between the last frame and this frame.
+    pub fn get_last_frame_oversleep(&self) -> Duration {
+        let Ok(oversleep_record)        = self.oversleep_record.try_lock() else { return Duration::default() };
+        let Some(most_recent_oversleep) = oversleep_record.back()          else { return Duration::default() };
+        *most_recent_oversleep
+    }
+
+    /// Get the average frame time over the recorded frame times.
+    pub fn get_avg_frame_time(&self) -> Duration {
+        let Ok(frametime_record) = self.frametime_record.try_lock() else { return Duration::default() };
+
+        let mut total_duration = Duration::default();
+        for record in &*frametime_record { total_duration = total_duration + *record; }
+        if self.max_frame_records == 0 { return Duration::default() }
+        total_duration / (self.max_frame_records as u32)
     }
 }
 
@@ -286,8 +375,9 @@ fn framerate_limiter(
     // sleep the current thread
     let Ok(limit) = target_frametime.0.try_lock() else { return };
     let already_elapsed_time = timer.sleep_end.elapsed();
+    let sleep_duration = stats.get_requested_sleep_duration(limit.deref().clone(), already_elapsed_time);
     if settings.is_enabled()
-    { spin_sleep::sleep(stats.get_sleep_adjustment(limit.deref().clone(), already_elapsed_time)); }
+    { if sleep_duration != Duration::default() { spin_sleep::sleep(sleep_duration); } }
 
     // update stats and timer
     let final_frame_time = timer.sleep_end.elapsed();
