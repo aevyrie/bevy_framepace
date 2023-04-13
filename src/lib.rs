@@ -36,6 +36,7 @@ use bevy::{
 };
 
 use std::{
+    ops::Deref,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -50,10 +51,10 @@ impl Plugin for FramepacePlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<FramepaceSettings>();
 
-        let limit = FrametimeLimit::default();
-        let settings = FramepaceSettings::default();
+        let limit          = FrametimeLimit::default();
+        let settings       = FramepaceSettings::default();
         let settings_proxy = FramepaceSettingsProxy::default();
-        let stats = FramePaceStats::default();
+        let stats          = FramePaceStats::default();
 
         app.insert_resource(settings)
             .insert_resource(settings_proxy.clone())
@@ -64,14 +65,8 @@ impl Plugin for FramepacePlugin {
         #[cfg(not(target_arch = "wasm32"))]
         app.add_systems(Update, get_display_refresh_rate);
 
-        if let Ok(sub_app) = app.get_sub_app_mut(RenderExtractApp) {
-            sub_app
-                .insert_resource(FrameTimer::default())
-                .insert_resource(settings_proxy)
-                .insert_resource(limit)
-                .insert_resource(stats)
-                .add_systems(Main, framerate_limiter);
-        } else {
+        let Ok(render_extract_app) = app.get_sub_app_mut(RenderExtractApp)
+        else {
             app.sub_app_mut(RenderApp)
                 .insert_resource(FrameTimer::default())
                 .insert_resource(settings_proxy)
@@ -83,7 +78,17 @@ impl Plugin for FramepacePlugin {
                         .in_set(RenderSet::Cleanup)
                         .after(World::clear_entities),
                 );
-        }
+            return;
+        };
+
+        render_extract_app.insert_resource(FrameTimer::default())
+            .insert_resource(settings_proxy)
+            .insert_resource(limit)
+            .insert_resource(stats)
+            .add_system(
+                framerate_limiter
+                    .run_if(|settings: Res<FramepaceSettingsProxy>| settings.is_enabled()),
+            );
     }
 }
 
@@ -158,9 +163,9 @@ impl Limiter {
 impl std::fmt::Display for Limiter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let output = match self {
-            Limiter::Auto => "Auto".into(),
+            Limiter::Auto      => "Auto".into(),
             Limiter::Manual(t) => format!("{:.2} fps", 1.0 / t.as_secs_f32()),
-            Limiter::Off => "Off".into(),
+            Limiter::Off       => "Off".into(),
         };
         write!(f, "{}", output)
     }
@@ -194,10 +199,11 @@ fn get_display_refresh_rate(
         return;
     }
     let new_frametime = match settings.limiter {
-        Limiter::Auto => match detect_frametime(winit, windows.iter()) {
-            Some(frametime) => frametime,
-            None => return,
-        },
+        Limiter::Auto =>
+            match detect_frametime(winit, windows.iter()) {
+                Some(frametime) => frametime,
+                None            => return,
+            },
         Limiter::Manual(frametime) => frametime,
         Limiter::Off => {
             #[cfg(feature = "framepace_debug")]
@@ -206,13 +212,12 @@ fn get_display_refresh_rate(
         }
     };
 
-    if let Ok(mut limit) = frame_limit.0.try_lock() {
-        if new_frametime != *limit {
-            #[cfg(feature = "framepace_debug")]
-            info!("Frametime limit changed to: {:?}", new_frametime);
-            *limit = new_frametime;
-        }
-    }
+    let Ok(mut limit) = frame_limit.0.try_lock() else { return };
+    if new_frametime == *limit { return }
+
+    #[cfg(feature = "framepace_debug")]
+    info!("Frametime limit changed to: {:?}", new_frametime);
+    *limit = new_frametime;
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -240,6 +245,26 @@ pub struct FramePaceStats {
     oversleep: Arc<Mutex<Duration>>,
 }
 
+impl FramePaceStats {
+    fn add_frame_stats(&self, new_frametime: Duration, new_oversleep: Duration) {
+        let Ok(mut frametime) = self.frametime.try_lock() else { return };
+        *frametime = new_frametime;
+
+        let Ok(mut oversleep) = self.oversleep.try_lock() else { return };
+        *oversleep = new_oversleep;
+    }
+
+    fn get_sleep_adjustment(&self, target_frametime: Duration, already_elapsed_time: Duration) -> Duration {
+        let oversleep = self
+            .oversleep
+            .try_lock()
+            .as_deref()
+            .cloned()
+            .unwrap_or_default();
+        target_frametime.saturating_sub(already_elapsed_time + oversleep)
+    }
+}
+
 /// Accurately sleeps until it's time to start the next frame.
 ///
 /// The `spin_sleep` dependency makes it possible to get extremely accurate sleep times across
@@ -255,28 +280,17 @@ fn framerate_limiter(
     stats: Res<FramePaceStats>,
     settings: Res<FramepaceSettingsProxy>,
 ) {
-    if let Ok(limit) = target_frametime.0.try_lock() {
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            let oversleep = stats
-                .oversleep
-                .try_lock()
-                .as_deref()
-                .cloned()
-                .unwrap_or_default();
-            let sleep_time = limit.saturating_sub(timer.sleep_end.elapsed() + oversleep);
-            if settings.is_enabled() {
-                spin_sleep::sleep(sleep_time);
-            }
-        }
+    #[cfg(target_arch = "wasm32")]
+    return;
 
-        let frame_time_actual = timer.sleep_end.elapsed();
-        timer.sleep_end = Instant::now();
-        if let Ok(mut frametime) = stats.frametime.try_lock() {
-            *frametime = frame_time_actual;
-        }
-        if let Ok(mut oversleep) = stats.oversleep.try_lock() {
-            *oversleep = frame_time_actual.saturating_sub(*limit);
-        }
-    };
+    // sleep the current thread
+    let Ok(limit) = target_frametime.0.try_lock() else { return };
+    let already_elapsed_time = timer.sleep_end.elapsed();
+    if settings.is_enabled()
+    { spin_sleep::sleep(stats.get_sleep_adjustment(limit.deref().clone(), already_elapsed_time)); }
+
+    // update stats and timer
+    let final_frame_time = timer.sleep_end.elapsed();
+    stats.add_frame_stats(final_frame_time, final_frame_time.saturating_sub(*limit));
+    timer.sleep_end = Instant::now();
 }
