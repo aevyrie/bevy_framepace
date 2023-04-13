@@ -10,11 +10,16 @@ documentation = "https://docs.rs/bevy_framepace"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[dependencies]
-bevy = { version = "0.11", default-features = false, features = [
+[dependencies.bevy]
+git = "https://github.com/UkoeHB/bevy.git"
+branch = "add_texture_present_time"
+default-features = false
+features = [
     "bevy_render",
     "bevy_winit",
-] }
+]
+
+[dependencies]
 spin_sleep = "1.0"
 
 [features]
@@ -22,8 +27,11 @@ default = ["framepace_debug", "bevy/x11"]
 framepace_debug = []
 
 [dev-dependencies]
-bevy = { version = "0.11", default-features = false, features = [
-    "bevy_gizmos",
+bevy = { git = "https://github.com/UkoeHB/bevy.git", branch = "add_texture_present_time_rebase", default-features = false, features = [
+    "bevy_asset",
+    "bevy_core_pipeline",
+    "bevy_render",
+    "bevy_sprite",
     "bevy_text",
     "bevy_ui",
     "default_font",
