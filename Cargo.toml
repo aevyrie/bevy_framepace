@@ -1,6 +1,6 @@
 [package]
 name = "bevy_framepace"
-version = "0.12.1"
+version = "0.12.2"
 edition = "2021"
 resolver = "2"
 description = "Frame pacing and frame limiting for Bevy"
@@ -11,7 +11,7 @@ documentation = "https://docs.rs/bevy_framepace"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bevy = { version = "0.10", default-features = false, features = [
+bevy = { version = "0.10.1", default-features = false, features = [
     "bevy_render",
     "bevy_winit",
 ] }
