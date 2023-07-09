@@ -59,10 +59,10 @@ impl Plugin for FramepacePlugin {
             .insert_resource(settings_proxy.clone())
             .insert_resource(limit.clone())
             .insert_resource(stats.clone())
-            .add_system(update_proxy_resources);
+            .add_systems(Update, update_proxy_resources);
 
         #[cfg(not(target_arch = "wasm32"))]
-        app.add_system(get_display_refresh_rate);
+        app.add_systems(Update, get_display_refresh_rate);
 
         if let Ok(sub_app) = app.get_sub_app_mut(RenderExtractApp) {
             sub_app
@@ -70,7 +70,8 @@ impl Plugin for FramepacePlugin {
                 .insert_resource(settings_proxy)
                 .insert_resource(limit)
                 .insert_resource(stats)
-                .add_system(
+                .add_systems(
+                    Update,
                     framerate_limiter
                         .run_if(|settings: Res<FramepaceSettingsProxy>| settings.is_enabled()),
                 );
@@ -80,7 +81,8 @@ impl Plugin for FramepacePlugin {
                 .insert_resource(settings_proxy)
                 .insert_resource(limit)
                 .insert_resource(stats)
-                .add_system(
+                .add_systems(
+                    Update,
                     framerate_limiter
                         .in_set(RenderSet::Cleanup)
                         .after(World::clear_entities)
@@ -91,7 +93,7 @@ impl Plugin for FramepacePlugin {
 }
 
 /// Framepacing plugin configuration.
-#[derive(Debug, Clone, Resource, Reflect, FromReflect)]
+#[derive(Debug, Clone, Resource, Reflect)]
 #[reflect(Resource)]
 pub struct FramepaceSettings {
     /// Configures the framerate limiting strategy.
@@ -133,7 +135,7 @@ fn update_proxy_resources(settings: Res<FramepaceSettings>, proxy: Res<Framepace
 }
 
 /// Configures the framelimiting technique for the app.
-#[derive(Debug, Default, Clone, Reflect, FromReflect)]
+#[derive(Debug, Default, Clone, Reflect)]
 pub enum Limiter {
     /// Uses the window's refresh rate to set the frametime limit, updating when the window changes
     /// monitors.

@@ -3,14 +3,15 @@ use bevy::{prelude::*, render::pipelined_rendering::PipelinedRenderingPlugin};
 fn main() {
     App::new()
         // Disable pipelined rendering to prioritize latency reduction
-        .add_plugins(DefaultPlugins.build().disable::<PipelinedRenderingPlugin>())
-        .add_plugin(bevy::diagnostic::LogDiagnosticsPlugin::default())
-        .add_plugin(bevy_framepace::FramepacePlugin)
-        .add_plugin(bevy_framepace::debug::DiagnosticsPlugin)
-        .add_plugin(bevy_framepace::debug::CursorPlugin)
-        .add_startup_system(setup)
-        .add_system(toggle_plugin)
-        .add_system(update_ui)
+        .add_plugins((
+            DefaultPlugins.build().disable::<PipelinedRenderingPlugin>(),
+            bevy::diagnostic::LogDiagnosticsPlugin::default(),
+            bevy_framepace::FramepacePlugin,
+            bevy_framepace::debug::DiagnosticsPlugin,
+            bevy_framepace::debug::CursorPlugin,
+        ))
+        .add_systems(Startup, setup)
+        .add_systems(Update, (toggle_plugin, update_ui))
         .run();
 }
 
