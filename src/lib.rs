@@ -59,10 +59,10 @@ impl Plugin for FramepacePlugin {
             .insert_resource(settings_proxy.clone())
             .insert_resource(limit.clone())
             .insert_resource(stats.clone())
-            .add_system(update_proxy_resources);
+            .add_systems(Update, update_proxy_resources);
 
         #[cfg(not(target_arch = "wasm32"))]
-        app.add_system(get_display_refresh_rate);
+        app.add_systems(Update, get_display_refresh_rate);
 
         if let Ok(sub_app) = app.get_sub_app_mut(RenderExtractApp) {
             sub_app
@@ -70,28 +70,25 @@ impl Plugin for FramepacePlugin {
                 .insert_resource(settings_proxy)
                 .insert_resource(limit)
                 .insert_resource(stats)
-                .add_system(
-                    framerate_limiter
-                        .run_if(|settings: Res<FramepaceSettingsProxy>| settings.is_enabled()),
-                );
+                .add_systems(Main, framerate_limiter);
         } else {
             app.sub_app_mut(RenderApp)
                 .insert_resource(FrameTimer::default())
                 .insert_resource(settings_proxy)
                 .insert_resource(limit)
                 .insert_resource(stats)
-                .add_system(
+                .add_systems(
+                    bevy::render::Render,
                     framerate_limiter
                         .in_set(RenderSet::Cleanup)
-                        .after(World::clear_entities)
-                        .run_if(|settings: Res<FramepaceSettingsProxy>| settings.is_enabled()),
+                        .after(World::clear_entities),
                 );
         }
     }
 }
 
 /// Framepacing plugin configuration.
-#[derive(Debug, Clone, Resource, Reflect, FromReflect)]
+#[derive(Debug, Clone, Resource, Reflect)]
 #[reflect(Resource)]
 pub struct FramepaceSettings {
     /// Configures the framerate limiting strategy.
@@ -133,7 +130,7 @@ fn update_proxy_resources(settings: Res<FramepaceSettings>, proxy: Res<Framepace
 }
 
 /// Configures the framelimiting technique for the app.
-#[derive(Debug, Default, Clone, Reflect, FromReflect)]
+#[derive(Debug, Default, Clone, Reflect)]
 pub enum Limiter {
     /// Uses the window's refresh rate to set the frametime limit, updating when the window changes
     /// monitors.
@@ -224,16 +221,12 @@ fn detect_frametime(
     windows: impl Iterator<Item = Entity>,
 ) -> Option<Duration> {
     let best_framerate = {
-        windows
+        let mhz = windows
             .filter_map(|e| winit.get_window(e))
             .filter_map(|w| w.current_monitor())
             .map(|monitor| bevy::winit::get_best_videomode(&monitor).refresh_rate_millihertz())
-            .min()? as f64
-            / 1000.0
-            - 0.5 // We need to subtract 0.5 because winit only reads framerate to the nearest 1
-                  // hertz. To prevent frames building up, adding latency, we need to use the most
-                  // conservative possible refresh rate that could round up to the integer value
-                  // reported by winit.
+            .min()? as f64;
+        dbg!(mhz) / 1000.0
     };
 
     let best_frametime = Duration::from_secs_f64(1.0 / best_framerate);
@@ -260,6 +253,7 @@ fn framerate_limiter(
     mut timer: ResMut<FrameTimer>,
     target_frametime: Res<FrametimeLimit>,
     stats: Res<FramePaceStats>,
+    settings: Res<FramepaceSettingsProxy>,
 ) {
     if let Ok(limit) = target_frametime.0.try_lock() {
         #[cfg(not(target_arch = "wasm32"))]
@@ -271,7 +265,9 @@ fn framerate_limiter(
                 .cloned()
                 .unwrap_or_default();
             let sleep_time = limit.saturating_sub(timer.sleep_end.elapsed() + oversleep);
-            spin_sleep::sleep(sleep_time);
+            if settings.is_enabled() {
+                spin_sleep::sleep(sleep_time);
+            }
         }
 
         let frame_time_actual = timer.sleep_end.elapsed();

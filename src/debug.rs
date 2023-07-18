@@ -2,7 +2,7 @@
 
 use bevy::{
     core_pipeline::clear_color::ClearColorConfig,
-    diagnostic::{Diagnostic, DiagnosticId, Diagnostics},
+    diagnostic::{Diagnostic, DiagnosticId, Diagnostics, RegisterDiagnostic},
     prelude::*,
 };
 
@@ -11,8 +11,16 @@ pub struct DiagnosticsPlugin;
 
 impl Plugin for DiagnosticsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(Self::setup_system)
-            .add_system(Self::diagnostic_system);
+        app.add_systems(Update, Self::diagnostic_system);
+
+        app.register_diagnostic(
+            Diagnostic::new(Self::FRAMEPACE_FRAMETIME, "framepace::frametime", 128)
+                .with_suffix("ms"),
+        );
+        app.register_diagnostic(
+            Diagnostic::new(Self::FRAMEPACE_OVERSLEEP, "framepace::oversleep", 128)
+                .with_suffix("µs"),
+        );
     }
 }
 
@@ -24,21 +32,9 @@ impl DiagnosticsPlugin {
     pub const FRAMEPACE_OVERSLEEP: DiagnosticId =
         DiagnosticId::from_u128(978023490268634078905367093342937);
 
-    /// Initial setup for framepace diagnostics
-    pub fn setup_system(mut diagnostics: ResMut<Diagnostics>) {
-        diagnostics.add(
-            Diagnostic::new(Self::FRAMEPACE_FRAMETIME, "framepace::frametime", 128)
-                .with_suffix("ms"),
-        );
-        diagnostics.add(
-            Diagnostic::new(Self::FRAMEPACE_OVERSLEEP, "framepace::oversleep", 128)
-                .with_suffix("µs"),
-        );
-    }
-
     /// Updates diagnostic data from measurements
     pub fn diagnostic_system(
-        mut diagnostics: ResMut<Diagnostics>,
+        mut diagnostics: Diagnostics,
         time: Res<Time>,
         stats: Res<crate::FramePaceStats>,
     ) {
@@ -67,8 +63,8 @@ pub struct CursorPlugin;
 
 impl Plugin for CursorPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(Self::setup_cursor)
-            .add_system(Self::update_cursor);
+        app.add_systems(Startup, Self::setup_cursor)
+            .add_systems(Update, Self::update_cursor);
     }
 }
 
@@ -109,8 +105,12 @@ impl CursorPlugin {
         mut cursor: Query<&mut Transform, With<DebugCursor>>,
     ) {
         if let Some(pos) = windows.single().cursor_position() {
-            let offset = -Vec2::new(windows.single().width(), windows.single().height()) / 2.0;
-            cursor.single_mut().translation = (pos + offset).extend(0.0);
+            let pos = Vec3::new(
+                pos.x - windows.single().width() / 2.0,
+                windows.single().height() / 2.0 - pos.y,
+                0.0,
+            );
+            cursor.single_mut().translation = pos;
         }
     }
 }

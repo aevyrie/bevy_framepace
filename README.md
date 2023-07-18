@@ -32,6 +32,7 @@ settings.limiter = Limiter::from_framerate(30.0),
 ```
 
 See `demo.rs` in the examples folder, or run with:
+
 ```console
 cargo run --release --example demo
 ```
@@ -47,19 +48,18 @@ frame.
 The `spin_sleep` dependency is needed for precise sleep times. The sleep function in the standard
 library is not accurate enough for this application, especially on Windows.
 
-
 ## Bevy Version Support
 
 I intend to track the `main` branch of Bevy. PRs supporting this are welcome!
 
 | bevy | bevy_framepace            |
 | ---- | -------------------       |
+| 0.11 | 0.13                      |
 | 0.10 | 0.12                      |
 | 0.9  | 0.7, 0.8, 0.9, 0.10, 0.11 |
 | 0.8  | 0.5, 0.6                  |
 | 0.7  | 0.4                       |
 | 0.6  | 0.3                       |
-
 
 ## License
 

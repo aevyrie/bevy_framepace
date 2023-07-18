@@ -1,16 +1,22 @@
-use bevy::{prelude::*, render::pipelined_rendering::PipelinedRenderingPlugin};
+use bevy::prelude::*;
 
 fn main() {
     App::new()
-        // Disable pipelined rendering to prioritize latency reduction
-        .add_plugins(DefaultPlugins.build().disable::<PipelinedRenderingPlugin>())
-        .add_plugin(bevy::diagnostic::LogDiagnosticsPlugin::default())
-        .add_plugin(bevy_framepace::FramepacePlugin)
-        .add_plugin(bevy_framepace::debug::DiagnosticsPlugin)
-        .add_plugin(bevy_framepace::debug::CursorPlugin)
-        .add_startup_system(setup)
-        .add_system(toggle_plugin)
-        .add_system(update_ui)
+        .add_plugins((
+            DefaultPlugins.set(WindowPlugin {
+                primary_window: Some(Window {
+                    present_mode: bevy::window::PresentMode::Fifo,
+                    ..default()
+                }),
+                ..default()
+            }),
+            bevy::diagnostic::LogDiagnosticsPlugin::default(),
+            bevy_framepace::FramepacePlugin,
+            bevy_framepace::debug::DiagnosticsPlugin,
+            bevy_framepace::debug::CursorPlugin,
+        ))
+        .add_systems(Startup, setup)
+        .add_systems(Update, (toggle_plugin, update_ui))
         .run();
 }
 
@@ -39,15 +45,14 @@ fn update_ui(
 }
 
 /// set up the scene
-fn setup(mut commands: Commands, mut windows: Query<&mut Window>, asset_server: Res<AssetServer>) {
+fn setup(mut commands: Commands, mut windows: Query<&mut Window>) {
     windows.iter_mut().next().unwrap().cursor.icon = CursorIcon::Crosshair;
     commands.spawn((Camera3dBundle::default(),));
     // UI
-    let font = asset_server.load("fonts/FiraMono-Medium.ttf");
     let style = TextStyle {
-        font,
         font_size: 60.0,
         color: Color::WHITE,
+        ..default()
     };
     commands.spawn((
         TextBundle::from_sections(vec![
