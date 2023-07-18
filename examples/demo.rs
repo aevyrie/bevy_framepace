@@ -3,20 +3,13 @@ use bevy::prelude::*;
 fn main() {
     App::new()
         .add_plugins((
-            DefaultPlugins.set(WindowPlugin {
-                primary_window: Some(Window {
-                    present_mode: bevy::window::PresentMode::Fifo,
-                    ..default()
-                }),
-                ..default()
-            }),
+            DefaultPlugins,
             bevy::diagnostic::LogDiagnosticsPlugin::default(),
             bevy_framepace::FramepacePlugin,
             bevy_framepace::debug::DiagnosticsPlugin,
-            bevy_framepace::debug::CursorPlugin,
         ))
         .add_systems(Startup, setup)
-        .add_systems(Update, (toggle_plugin, update_ui))
+        .add_systems(Update, (toggle_plugin, update_ui, update_cursor))
         .run();
 }
 
@@ -44,9 +37,26 @@ fn update_ui(
     text.single_mut().sections[1].value = format!("{}", settings.limiter);
 }
 
+pub fn update_cursor(windows: Query<&Window>, mut gizmos: Gizmos) {
+    if let Some(pos) = windows.single().cursor_position() {
+        let pos = Vec2::new(
+            pos.x - windows.single().width() / 2.0,
+            windows.single().height() / 2.0 - pos.y,
+        );
+        gizmos.circle_2d(pos, 10.0, Color::GREEN);
+    }
+}
+
 /// set up the scene
 fn setup(mut commands: Commands, mut windows: Query<&mut Window>) {
     windows.iter_mut().next().unwrap().cursor.icon = CursorIcon::Crosshair;
+    commands.spawn((Camera2dBundle {
+        camera: Camera {
+            order: 10,
+            ..default()
+        },
+        ..default()
+    },));
     commands.spawn((Camera3dBundle::default(),));
     // UI
     let style = TextStyle {

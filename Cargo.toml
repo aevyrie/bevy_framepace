@@ -18,21 +18,13 @@ bevy = { version = "0.11", default-features = false, features = [
 spin_sleep = "1.0"
 
 [features]
-default = ["framepace_debug", "bevy/x11"]
-framepace_debug = [
-    "bevy/bevy_asset",
-    "bevy/bevy_core_pipeline",
-    "bevy/bevy_sprite",
-]
+default = ["framepace_debug"]
+framepace_debug = ["bevy/bevy_gizmos"]
 
 [dev-dependencies]
 bevy = { version = "0.11", default-features = false, features = [
-    "bevy_asset",
-    "bevy_core_pipeline",
-    "bevy_sprite",
     "bevy_text",
     "bevy_ui",
-    "bevy_winit",
     "default_font",
     "multi-threaded",
 ] }

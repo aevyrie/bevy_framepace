@@ -1,7 +1,6 @@
 //! Adds diagnostic logging and a cursor for debugging.
 
 use bevy::{
-    core_pipeline::clear_color::ClearColorConfig,
     diagnostic::{Diagnostic, DiagnosticId, Diagnostics, RegisterDiagnostic},
     prelude::*,
 };
@@ -47,70 +46,5 @@ impl DiagnosticsPlugin {
 
         diagnostics.add_measurement(Self::FRAMEPACE_FRAMETIME, || frametime_millis);
         diagnostics.add_measurement(Self::FRAMEPACE_OVERSLEEP, || error_micros);
-    }
-}
-
-/// Marks the entity to use for the framepace debug cursor.
-#[derive(Component, Debug, Reflect)]
-pub struct DebugCursor;
-
-/// Marks the camera to use for rendering the framepace debug cursor.
-#[derive(Component, Debug, Reflect)]
-pub struct DebugCursorCamera;
-
-/// Adds a simple debug cursor for quickly testing latency.
-pub struct CursorPlugin;
-
-impl Plugin for CursorPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_systems(Startup, Self::setup_cursor)
-            .add_systems(Update, Self::update_cursor);
-    }
-}
-
-impl CursorPlugin {
-    /// Spawns the [`DebugCursorCamera`] and [`DebugCursor`] entities.
-    pub fn setup_cursor(
-        mut commands: Commands,
-        mut meshes: ResMut<Assets<Mesh>>,
-        mut materials: ResMut<Assets<ColorMaterial>>,
-    ) {
-        commands.spawn((
-            Camera2dBundle {
-                camera: Camera {
-                    order: 100,
-                    ..Default::default()
-                },
-                camera_2d: Camera2d {
-                    clear_color: ClearColorConfig::None,
-                },
-                ..Default::default()
-            },
-            DebugCursorCamera,
-        ));
-        commands.spawn((
-            bevy::sprite::MaterialMesh2dBundle {
-                mesh: meshes.add(shape::Circle::new(10.0).into()).into(),
-                material: materials.add(ColorMaterial::from(Color::GREEN)),
-                transform: Transform::from_translation(Vec3::new(-100., 0., 0.)),
-                ..default()
-            },
-            DebugCursor,
-        ));
-    }
-
-    /// Updates the position of the [`DebugCursor`].
-    pub fn update_cursor(
-        windows: Query<&Window>,
-        mut cursor: Query<&mut Transform, With<DebugCursor>>,
-    ) {
-        if let Some(pos) = windows.single().cursor_position() {
-            let pos = Vec3::new(
-                pos.x - windows.single().width() / 2.0,
-                windows.single().height() / 2.0 - pos.y,
-                0.0,
-            );
-            cursor.single_mut().translation = pos;
-        }
     }
 }
