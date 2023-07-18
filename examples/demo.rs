@@ -1,10 +1,15 @@
-use bevy::{prelude::*, render::pipelined_rendering::PipelinedRenderingPlugin};
+use bevy::prelude::*;
 
 fn main() {
     App::new()
-        // Disable pipelined rendering to prioritize latency reduction
         .add_plugins((
-            DefaultPlugins.build().disable::<PipelinedRenderingPlugin>(),
+            DefaultPlugins.set(WindowPlugin {
+                primary_window: Some(Window {
+                    present_mode: bevy::window::PresentMode::Fifo,
+                    ..default()
+                }),
+                ..default()
+            }),
             bevy::diagnostic::LogDiagnosticsPlugin::default(),
             bevy_framepace::FramepacePlugin,
             bevy_framepace::debug::DiagnosticsPlugin,
@@ -40,15 +45,14 @@ fn update_ui(
 }
 
 /// set up the scene
-fn setup(mut commands: Commands, mut windows: Query<&mut Window>, asset_server: Res<AssetServer>) {
+fn setup(mut commands: Commands, mut windows: Query<&mut Window>) {
     windows.iter_mut().next().unwrap().cursor.icon = CursorIcon::Crosshair;
     commands.spawn((Camera3dBundle::default(),));
     // UI
-    let font = asset_server.load("fonts/FiraMono-Medium.ttf");
     let style = TextStyle {
-        font,
         font_size: 60.0,
         color: Color::WHITE,
+        ..default()
     };
     commands.spawn((
         TextBundle::from_sections(vec![

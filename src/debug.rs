@@ -105,8 +105,12 @@ impl CursorPlugin {
         mut cursor: Query<&mut Transform, With<DebugCursor>>,
     ) {
         if let Some(pos) = windows.single().cursor_position() {
-            let offset = -Vec2::new(windows.single().width(), windows.single().height()) / 2.0;
-            cursor.single_mut().translation = (pos + offset).extend(0.0);
+            let pos = Vec3::new(
+                pos.x - windows.single().width() / 2.0,
+                windows.single().height() / 2.0 - pos.y,
+                0.0,
+            );
+            cursor.single_mut().translation = pos;
         }
     }
 }

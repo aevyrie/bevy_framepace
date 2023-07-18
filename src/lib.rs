@@ -70,11 +70,7 @@ impl Plugin for FramepacePlugin {
                 .insert_resource(settings_proxy)
                 .insert_resource(limit)
                 .insert_resource(stats)
-                .add_systems(
-                    Update,
-                    framerate_limiter
-                        .run_if(|settings: Res<FramepaceSettingsProxy>| settings.is_enabled()),
-                );
+                .add_systems(Main, framerate_limiter);
         } else {
             app.sub_app_mut(RenderApp)
                 .insert_resource(FrameTimer::default())
@@ -82,11 +78,10 @@ impl Plugin for FramepacePlugin {
                 .insert_resource(limit)
                 .insert_resource(stats)
                 .add_systems(
-                    Update,
+                    bevy::render::Render,
                     framerate_limiter
                         .in_set(RenderSet::Cleanup)
-                        .after(World::clear_entities)
-                        .run_if(|settings: Res<FramepaceSettingsProxy>| settings.is_enabled()),
+                        .after(World::clear_entities),
                 );
         }
     }
@@ -224,16 +219,12 @@ fn detect_frametime(
     windows: impl Iterator<Item = Entity>,
 ) -> Option<Duration> {
     let best_framerate = {
-        windows
+        let mhz = windows
             .filter_map(|e| winit.get_window(e))
             .filter_map(|w| w.current_monitor())
             .map(|monitor| bevy::winit::get_best_videomode(&monitor).refresh_rate_millihertz())
-            .min()? as f64
-            / 1000.0
-            - 0.5 // We need to subtract 0.5 because winit only reads framerate to the nearest 1
-                  // hertz. To prevent frames building up, adding latency, we need to use the most
-                  // conservative possible refresh rate that could round up to the integer value
-                  // reported by winit.
+            .min()? as f64;
+        dbg!(mhz) / 1000.0
     };
 
     let best_frametime = Duration::from_secs_f64(1.0 / best_framerate);
@@ -260,6 +251,7 @@ fn framerate_limiter(
     mut timer: ResMut<FrameTimer>,
     target_frametime: Res<FrametimeLimit>,
     stats: Res<FramePaceStats>,
+    settings: Res<FramepaceSettingsProxy>,
 ) {
     if let Ok(limit) = target_frametime.0.try_lock() {
         #[cfg(not(target_arch = "wasm32"))]
@@ -271,7 +263,9 @@ fn framerate_limiter(
                 .cloned()
                 .unwrap_or_default();
             let sleep_time = limit.saturating_sub(timer.sleep_end.elapsed() + oversleep);
-            spin_sleep::sleep(sleep_time);
+            if settings.is_enabled() {
+                spin_sleep::sleep(sleep_time);
+            }
         }
 
         let frame_time_actual = timer.sleep_end.elapsed();
