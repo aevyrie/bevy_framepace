@@ -25,6 +25,7 @@ framepace_debug = ["bevy/bevy_gizmos"]
 bevy = { version = "0.11", default-features = false, features = [
     "bevy_text",
     "bevy_ui",
+    "bevy_winit",
     "default_font",
     "multi-threaded",
 ] }
