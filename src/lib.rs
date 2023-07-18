@@ -221,12 +221,12 @@ fn detect_frametime(
     windows: impl Iterator<Item = Entity>,
 ) -> Option<Duration> {
     let best_framerate = {
-        let mhz = windows
+        windows
             .filter_map(|e| winit.get_window(e))
             .filter_map(|w| w.current_monitor())
             .map(|monitor| bevy::winit::get_best_videomode(&monitor).refresh_rate_millihertz())
-            .min()? as f64;
-        dbg!(mhz) / 1000.0
+            .min()? as f64
+            / 1000.0
     };
 
     let best_frametime = Duration::from_secs_f64(1.0 / best_framerate);
