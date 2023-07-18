@@ -203,6 +203,7 @@ fn get_display_refresh_rate(
         },
         Limiter::Manual(frametime) => frametime,
         Limiter::Off => {
+            #[cfg(feature = "framepace_debug")]
             info!("Frame limiter disabled");
             return;
         }
@@ -210,6 +211,7 @@ fn get_display_refresh_rate(
 
     if let Ok(mut limit) = frame_limit.0.try_lock() {
         if new_frametime != *limit {
+            #[cfg(feature = "framepace_debug")]
             info!("Frametime limit changed to: {:?}", new_frametime);
             *limit = new_frametime;
         }
