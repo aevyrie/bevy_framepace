@@ -9,8 +9,7 @@
 [![CI](https://github.com/aevyrie/bevy_framepace/workflows/CI/badge.svg?branch=main)](https://github.com/aevyrie/bevy_framepace/actions?query=workflow%3A%22CI%22+branch%3Amain)
 [![Bevy](https://img.shields.io/badge/Bevy%20tracking-main-lightblue)](https://github.com/bevyengine/bevy/blob/main/docs/plugins_guidelines.md#main-branch-tracking)
 
-<video src = "https://user-images.githubusercontent.com/2632925/211992979-1892195b-b98f-424e-ae91-3fc4d6924b5e.mp4
-"></video>
+<video src = "https://user-images.githubusercontent.com/2632925/211992979-1892195b-b98f-424e-ae91-3fc4d6924b5e.mp4"></video>
 
 </div>
 
