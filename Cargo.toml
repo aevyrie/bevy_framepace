@@ -17,7 +17,6 @@ spin_sleep = "1.0"
 [features]
 default = ["framepace_debug","window", "bevy/x11"]
 window = ["bevy/bevy_render", "bevy/bevy_winit"]
-terminal = []
 framepace_debug = []
 
 [dev-dependencies]
