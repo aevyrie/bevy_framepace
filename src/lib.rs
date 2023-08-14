@@ -163,7 +163,6 @@ impl Limiter {
 impl std::fmt::Display for Limiter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let output = match self {
-            #[cfg(feature = "window")]
             Limiter::Auto => "Auto".into(),
             Limiter::Manual(t) => format!("{:.2} fps", 1.0 / t.as_secs_f32()),
             Limiter::Off => "Off".into(),
