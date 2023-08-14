@@ -84,7 +84,8 @@ impl Plugin for FramepacePlugin {
                 );
         }
         #[cfg(not(feature = "window"))]
-        app.add_systems(Last, framerate_limiter);
+        app.insert_resource(FrameTimer::default())
+            .add_systems(Last, framerate_limiter);
     }
 }
 
