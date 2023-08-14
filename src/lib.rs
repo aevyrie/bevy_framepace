@@ -27,13 +27,11 @@
 
 #![deny(missing_docs)]
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "window")]
+use bevy::render::{pipelined_rendering::RenderExtractApp, RenderApp, RenderSet};
+#[cfg(all(feature = "window", not(target_arch = "wasm32")))]
 use bevy::winit::WinitWindows;
-use bevy::{
-    prelude::*,
-    render::{pipelined_rendering::RenderExtractApp, RenderApp, RenderSet},
-    utils::Instant,
-};
+use bevy::{prelude::*, utils::Instant};
 
 use std::{
     sync::{Arc, Mutex},
@@ -62,8 +60,9 @@ impl Plugin for FramepacePlugin {
             .add_systems(Update, update_proxy_resources);
 
         #[cfg(not(target_arch = "wasm32"))]
-        app.add_systems(Update, get_display_refresh_rate);
+        app.add_systems(Update, update_frametime);
 
+        #[cfg(feature = "window")]
         if let Ok(sub_app) = app.get_sub_app_mut(RenderExtractApp) {
             sub_app
                 .insert_resource(FrameTimer::default())
@@ -84,6 +83,8 @@ impl Plugin for FramepacePlugin {
                         .after(World::clear_entities),
                 );
         }
+        #[cfg(not(feature = "window"))]
+        app.add_systems(Last, framerate_limiter);
     }
 }
 
@@ -132,11 +133,15 @@ fn update_proxy_resources(settings: Res<FramepaceSettings>, proxy: Res<Framepace
 /// Configures the framelimiting technique for the app.
 #[derive(Debug, Default, Clone, Reflect)]
 pub enum Limiter {
-    /// Uses the window's refresh rate to set the frametime limit, updating when the window changes
-    /// monitors.
+    /// A sane default for the frametime limit.
+    ///
+    /// When the `"window"` feature is enabled, this uses the window's refresh rate
+    /// to set the frametime limit, updating when the window changes monitors.
     #[default]
     Auto,
-    /// Set a fixed manual frametime limit. This should be greater than the monitors frametime
+    /// Set a fixed manual frametime limit.
+    ///
+    /// When the `"window"` feature is enabled, this should be greater than the monitor's frametime
     /// (`1.0 / monitor frequency`).
     Manual(Duration),
     /// Disables frame limiting
@@ -158,6 +163,7 @@ impl Limiter {
 impl std::fmt::Display for Limiter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let output = match self {
+            #[cfg(feature = "window")]
             Limiter::Auto => "Auto".into(),
             Limiter::Manual(t) => format!("{:.2} fps", 1.0 / t.as_secs_f32()),
             Limiter::Off => "Off".into(),
@@ -184,20 +190,35 @@ impl Default for FrameTimer {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn get_display_refresh_rate(
+fn update_frametime(
     settings: Res<FramepaceSettings>,
-    winit: NonSend<WinitWindows>,
-    windows: Query<Entity, With<Window>>,
+    #[cfg(feature = "window")] (winit, windows): (
+        NonSend<WinitWindows>,
+        Query<Entity, With<Window>>,
+    ),
     frame_limit: Res<FrametimeLimit>,
 ) {
-    if !(settings.is_changed() || winit.is_changed()) {
+    let changed = settings.is_changed();
+    #[cfg(feature = "window")]
+    let changed = changed || winit.is_changed();
+
+    if !changed {
         return;
     }
     let new_frametime = match settings.limiter {
-        Limiter::Auto => match detect_frametime(winit, windows.iter()) {
-            Some(frametime) => frametime,
-            None => return,
-        },
+        Limiter::Auto => {
+            #[cfg(feature = "window")]
+            match detect_frametime(winit, windows.iter()) {
+                Some(frametime) => frametime,
+                None => return,
+            }
+            #[cfg(not(feature = "window"))]
+            {
+                /// A sane, conservative framerate that shouldn't burden the CPU in a tui.
+                const DEFAULT_TERMINAL_FPS: f64 = 15.;
+                Duration::from_secs_f64(1.0 / DEFAULT_TERMINAL_FPS)
+            }
+        }
         Limiter::Manual(frametime) => frametime,
         Limiter::Off => {
             #[cfg(feature = "framepace_debug")]
@@ -215,7 +236,7 @@ fn get_display_refresh_rate(
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(feature = "window", not(target_arch = "wasm32")))]
 fn detect_frametime(
     winit: NonSend<WinitWindows>,
     windows: impl Iterator<Item = Entity>,

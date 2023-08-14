@@ -11,14 +11,13 @@ documentation = "https://docs.rs/bevy_framepace"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bevy = { version = "0.11", default-features = false, features = [
-    "bevy_render",
-    "bevy_winit",
-] }
+bevy = { version = "0.11", default-features = false }
 spin_sleep = "1.0"
 
 [features]
-default = ["framepace_debug", "bevy/x11"]
+default = ["framepace_debug","window", "bevy/x11"]
+window = ["bevy/bevy_render", "bevy/bevy_winit"]
+terminal = []
 framepace_debug = []
 
 [dev-dependencies]
