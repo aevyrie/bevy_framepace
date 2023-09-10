@@ -77,8 +77,8 @@ impl Plugin for FramepacePlugin {
         #[cfg(not(target_arch = "wasm32"))]
         app.add_systems(Update, get_display_refresh_rate);
 
-        let Ok(render_extract_app) = app.get_sub_app_mut(RenderExtractApp)
-        else {
+        //let Ok(render_extract_app) = app.get_sub_app_mut(RenderExtractApp)
+        //else {
             app.sub_app_mut(RenderApp)
                 .insert_resource(FrameTimer::default())
                 .insert_resource(settings_proxy)
@@ -88,19 +88,21 @@ impl Plugin for FramepacePlugin {
                     bevy::render::Render,
                     framerate_limiter
                         .in_set(RenderSet::Cleanup)
-                        .after(World::clear_entities),
+                        .after(World::clear_entities)
+                        .run_if(|settings: Res<FramepaceSettingsProxy>| settings.is_enabled()),
                 );
             return;
-        };
-
+        //};
+/*
+//todo: FramePresentDuration resource is missing if we use render_extract_app
         render_extract_app.insert_resource(FrameTimer::default())
             .insert_resource(settings_proxy)
             .insert_resource(limit)
             .insert_resource(stats)
-            .add_systems(Update,
+            .add_systems(Main,
                 framerate_limiter
                     .run_if(|settings: Res<FramepaceSettingsProxy>| settings.is_enabled()),
-            );
+            );*/
     }
 }
 
@@ -427,6 +429,7 @@ fn framerate_limiter(
 
     // sleep the current thread
     let Ok(limit) = target_frametime.0.try_lock() else { return };
+
     let time_spent_by_app = timer.sleep_end.elapsed().saturating_sub(frame_present_time.duration);
     let (sleep_duration, sleep_adjustment) = stats.get_requested_sleep_duration(limit.deref().clone(), time_spent_by_app);
     if sleep_duration != Duration::default() { spin_sleep::sleep(sleep_duration); }
