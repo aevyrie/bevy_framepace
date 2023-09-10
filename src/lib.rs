@@ -97,7 +97,7 @@ impl Plugin for FramepacePlugin {
             .insert_resource(settings_proxy)
             .insert_resource(limit)
             .insert_resource(stats)
-            .add_system(
+            .add_systems(Update,
                 framerate_limiter
                     .run_if(|settings: Res<FramepaceSettingsProxy>| settings.is_enabled()),
             );
@@ -421,7 +421,6 @@ fn framerate_limiter(
     mut timer: ResMut<FrameTimer>,
     target_frametime: Res<FrametimeLimit>,
     stats: Res<FramePaceStats>,
-    settings: Res<FramepaceSettingsProxy>,
 ) {
     #[cfg(target_arch = "wasm32")]
     return;
@@ -430,8 +429,7 @@ fn framerate_limiter(
     let Ok(limit) = target_frametime.0.try_lock() else { return };
     let time_spent_by_app = timer.sleep_end.elapsed().saturating_sub(frame_present_time.duration);
     let (sleep_duration, sleep_adjustment) = stats.get_requested_sleep_duration(limit.deref().clone(), time_spent_by_app);
-    if settings.is_enabled()
-    { if sleep_duration != Duration::default() { spin_sleep::sleep(sleep_duration); } }
+    if sleep_duration != Duration::default() { spin_sleep::sleep(sleep_duration); }
 
     // update stats and timer
     let final_frame_time = timer.sleep_end.elapsed();

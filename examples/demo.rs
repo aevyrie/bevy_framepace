@@ -20,6 +20,7 @@ fn main() {
         .add_systems(Update, update_ui_limiter)
         .add_systems(Update, update_ui_vsync)
         .add_systems(Update, update_ui_windowmode)
+        .add_systems(Update, update_cursor)
         .run();
 }
 
@@ -66,7 +67,7 @@ fn update_ui_limiter(
     text.single_mut().sections[1].value = format!("{}", settings.limiter);
 }
 
-pub fn update_cursor(windows: Query<&Window>, mut gizmos: Gizmos) {
+pub fn update_cursor(windows: Query<&Window>, mut gizmos: bevy::gizmos::gizmos::Gizmos) {
     if let Some(pos) = windows.single().cursor_position() {
         let pos = Vec2::new(
             pos.x - windows.single().width() / 2.0,
@@ -74,6 +75,7 @@ pub fn update_cursor(windows: Query<&Window>, mut gizmos: Gizmos) {
         );
         gizmos.circle_2d(pos, 10.0, Color::GREEN);
     }
+}
 
 fn update_ui_vsync(
     mut text: Query<&mut Text, With<EnableVsyncText>>,

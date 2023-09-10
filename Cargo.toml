@@ -27,11 +27,8 @@ default = ["framepace_debug", "bevy/x11"]
 framepace_debug = []
 
 [dev-dependencies]
-bevy = { git = "https://github.com/UkoeHB/bevy.git", branch = "add_texture_present_time_rebase", default-features = false, features = [
-    "bevy_asset",
-    "bevy_core_pipeline",
-    "bevy_render",
-    "bevy_sprite",
+bevy = { git = "https://github.com/UkoeHB/bevy.git", branch = "add_texture_present_time", default-features = false, features = [
+    "bevy_gizmos",
     "bevy_text",
     "bevy_ui",
     "default_font",
