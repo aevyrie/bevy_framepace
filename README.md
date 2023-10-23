@@ -18,7 +18,7 @@
 It's as simple as adding the plugin to your app:
 
 ```rs
-app.add_plugin(bevy_framepace::FramepacePlugin);
+app.add_plugins(bevy_framepace::FramepacePlugin);
 ```
 
 By default, the plugin will automatically measure your framerate and use this for framepacing.
