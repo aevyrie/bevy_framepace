@@ -190,9 +190,6 @@ fn get_display_refresh_rate(
     windows: Query<Entity, With<Window>>,
     frame_limit: Res<FrametimeLimit>,
 ) {
-    if !(settings.is_changed() || winit.is_changed()) {
-        return;
-    }
     let new_frametime = match settings.limiter {
         Limiter::Auto => match detect_frametime(winit, windows.iter()) {
             Some(frametime) => frametime,
@@ -201,7 +198,9 @@ fn get_display_refresh_rate(
         Limiter::Manual(frametime) => frametime,
         Limiter::Off => {
             #[cfg(feature = "framepace_debug")]
-            info!("Frame limiter disabled");
+            if settings.is_changed() {
+                info!("Frame limiter disabled");
+            }
             return;
         }
     };
@@ -224,9 +223,10 @@ fn detect_frametime(
         windows
             .filter_map(|e| winit.get_window(e))
             .filter_map(|w| w.current_monitor())
-            .map(|monitor| bevy::winit::get_best_videomode(&monitor).refresh_rate_millihertz())
+            .filter_map(|monitor| monitor.refresh_rate_millihertz())
             .min()? as f64
             / 1000.0
+            - 0.5 // Winit only provides integer refresh rate values. We need to round down to handle the worst case scenario of a rounded refresh rate.
     };
 
     let best_frametime = Duration::from_secs_f64(1.0 / best_framerate);
@@ -256,6 +256,7 @@ fn framerate_limiter(
     settings: Res<FramepaceSettingsProxy>,
 ) {
     if let Ok(limit) = target_frametime.0.try_lock() {
+        let frame_time = timer.sleep_end.elapsed();
         #[cfg(not(target_arch = "wasm32"))]
         {
             let oversleep = stats
@@ -264,19 +265,19 @@ fn framerate_limiter(
                 .as_deref()
                 .cloned()
                 .unwrap_or_default();
-            let sleep_time = limit.saturating_sub(timer.sleep_end.elapsed() + oversleep);
+            let sleep_time = limit.saturating_sub(frame_time + oversleep);
             if settings.is_enabled() {
                 spin_sleep::sleep(sleep_time);
             }
         }
 
-        let frame_time_actual = timer.sleep_end.elapsed();
+        let frame_time_total = timer.sleep_end.elapsed();
         timer.sleep_end = Instant::now();
         if let Ok(mut frametime) = stats.frametime.try_lock() {
-            *frametime = frame_time_actual;
+            *frametime = frame_time;
         }
         if let Ok(mut oversleep) = stats.oversleep.try_lock() {
-            *oversleep = frame_time_actual.saturating_sub(*limit);
+            *oversleep = frame_time_total.saturating_sub(*limit);
         }
     };
 }
