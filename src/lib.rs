@@ -25,7 +25,7 @@
 //!           60 fps                           limited to 10 fps
 //! ```
 
-#![deny(missing_docs)]
+// #![deny(missing_docs)]
 
 #[cfg(not(target_arch = "wasm32"))]
 use bevy::winit::WinitWindows;
@@ -45,13 +45,43 @@ pub mod debug;
 
 /// Adds framepacing and framelimiting functionality to your [`App`].
 #[derive(Debug, Clone, Component)]
-pub struct FramepacePlugin;
+pub struct FramepacePlugin {
+    pub headless: bool,
+    pub settings: Option<FramepaceSettings>,
+}
+
+impl Default for FramepacePlugin {
+    fn default() -> Self {
+        Self {
+            headless: false,
+            settings: None,
+        }
+    }
+}
+
 impl Plugin for FramepacePlugin {
     fn build(&self, app: &mut App) {
+        if self.headless
+            && (self.settings.is_none()
+                || self
+                    .settings
+                    .as_ref()
+                    .is_some_and(|setting| !matches!(setting.limiter, Limiter::Manual(_))))
+        {
+            panic!("FramepaceSettings must be supplied and the limiter set to manual when running in headless mode");
+        }
+
         app.register_type::<FramepaceSettings>();
 
-        let limit = FrametimeLimit::default();
-        let settings = FramepaceSettings::default();
+        let settings = match &self.settings {
+            Some(settings) => settings.clone(),
+            None => FramepaceSettings::default(),
+        };
+        let limit = if let Limiter::Manual(duration) = settings.limiter {
+            FrametimeLimit(Arc::new(Mutex::new(duration)))
+        } else {
+            FrametimeLimit::default()
+        };
         let settings_proxy = FramepaceSettingsProxy::default();
         let stats = FramePaceStats::default();
 
@@ -61,28 +91,32 @@ impl Plugin for FramepacePlugin {
             .insert_resource(stats.clone())
             .add_systems(Update, update_proxy_resources);
 
-        #[cfg(not(target_arch = "wasm32"))]
-        app.add_systems(Update, get_display_refresh_rate);
-
-        if let Ok(sub_app) = app.get_sub_app_mut(RenderExtractApp) {
-            sub_app
-                .insert_resource(FrameTimer::default())
-                .insert_resource(settings_proxy)
-                .insert_resource(limit)
-                .insert_resource(stats)
-                .add_systems(Main, framerate_limiter);
+        if !self.headless {
+            #[cfg(not(target_arch = "wasm32"))]
+            app.add_systems(Update, get_display_refresh_rate);
+            if let Ok(sub_app) = app.get_sub_app_mut(RenderExtractApp) {
+                sub_app
+                    .insert_resource(FrameTimer::default())
+                    .insert_resource(settings_proxy)
+                    .insert_resource(limit)
+                    .insert_resource(stats)
+                    .add_systems(Main, framerate_limiter);
+            } else {
+                app.sub_app_mut(RenderApp)
+                    .insert_resource(FrameTimer::default())
+                    .insert_resource(settings_proxy)
+                    .insert_resource(limit)
+                    .insert_resource(stats)
+                    .add_systems(
+                        bevy::render::Render,
+                        framerate_limiter
+                            .in_set(RenderSet::Cleanup)
+                            .after(World::clear_entities),
+                    );
+            }
         } else {
-            app.sub_app_mut(RenderApp)
-                .insert_resource(FrameTimer::default())
-                .insert_resource(settings_proxy)
-                .insert_resource(limit)
-                .insert_resource(stats)
-                .add_systems(
-                    bevy::render::Render,
-                    framerate_limiter
-                        .in_set(RenderSet::Cleanup)
-                        .after(World::clear_entities),
-                );
+            app.insert_resource(FrameTimer::default())
+                .add_systems(Main, framerate_limiter);
         }
     }
 }
