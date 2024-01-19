@@ -274,6 +274,16 @@ pub struct FramePaceStats {
     oversleep: Arc<Mutex<Duration>>,
 }
 
+impl FramePaceStats {
+    pub fn frametime(self) -> Duration {
+        self.frametime.lock().unwrap().clone()
+    }
+
+    pub fn oversleep(self) -> Duration {
+        self.oversleep.lock().unwrap().clone()
+    }
+}
+
 /// Accurately sleeps until it's time to start the next frame.
 ///
 /// The `spin_sleep` dependency makes it possible to get extremely accurate sleep times across
