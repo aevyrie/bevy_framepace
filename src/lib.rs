@@ -275,11 +275,11 @@ pub struct FramePaceStats {
 }
 
 impl FramePaceStats {
-    pub fn frametime(self) -> Duration {
+    pub fn frametime(&self) -> Duration {
         self.frametime.lock().unwrap().clone()
     }
 
-    pub fn oversleep(self) -> Duration {
+    pub fn oversleep(&self) -> Duration {
         self.oversleep.lock().unwrap().clone()
     }
 }
