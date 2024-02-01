@@ -18,7 +18,7 @@ struct EnableText;
 
 fn toggle_plugin(
     mut settings: ResMut<bevy_framepace::FramepaceSettings>,
-    input: Res<Input<KeyCode>>,
+    input: Res<ButtonInput<KeyCode>>,
 ) {
     if input.just_pressed(KeyCode::Space) {
         use bevy_framepace::Limiter;
