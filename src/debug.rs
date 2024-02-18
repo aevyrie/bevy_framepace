@@ -1,7 +1,7 @@
 //! Adds diagnostic logging and a cursor for debugging.
 
 use bevy::{
-    diagnostic::{Diagnostic, DiagnosticId, Diagnostics, RegisterDiagnostic},
+    diagnostic::{Diagnostic, DiagnosticPath, Diagnostics, RegisterDiagnostic},
     prelude::*,
 };
 
@@ -12,24 +12,18 @@ impl Plugin for DiagnosticsPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Update, Self::diagnostic_system);
 
-        app.register_diagnostic(
-            Diagnostic::new(Self::FRAMEPACE_FRAMETIME, "framepace::frametime", 128)
-                .with_suffix("ms"),
-        );
-        app.register_diagnostic(
-            Diagnostic::new(Self::FRAMEPACE_OVERSLEEP, "framepace::oversleep", 128)
-                .with_suffix("µs"),
-        );
+        app.register_diagnostic(Diagnostic::new(Self::FRAMEPACE_FRAMETIME).with_suffix("ms"));
+        app.register_diagnostic(Diagnostic::new(Self::FRAMEPACE_OVERSLEEP).with_suffix("µs"));
     }
 }
 
 impl DiagnosticsPlugin {
-    /// [`DiagnosticId`] for the frametime
-    pub const FRAMEPACE_FRAMETIME: DiagnosticId =
-        DiagnosticId::from_u128(8021378406439507683279787892187089153);
-    /// [`DiagnosticId`] for failures to meet frame time target
-    pub const FRAMEPACE_OVERSLEEP: DiagnosticId =
-        DiagnosticId::from_u128(978023490268634078905367093342937);
+    /// [`DiagnosticPath`] for the frametime
+    pub const FRAMEPACE_FRAMETIME: DiagnosticPath =
+        DiagnosticPath::const_new("framepace/frametime");
+    /// [`DiagnosticPath`] for failures to meet frame time target
+    pub const FRAMEPACE_OVERSLEEP: DiagnosticPath =
+        DiagnosticPath::const_new("framepace/oversleep");
 
     /// Updates diagnostic data from measurements
     pub fn diagnostic_system(
@@ -44,7 +38,7 @@ impl DiagnosticsPlugin {
         let frametime_millis = stats.frametime.try_lock().unwrap().as_secs_f64() * 1_000_f64;
         let error_micros = stats.oversleep.try_lock().unwrap().as_secs_f64() * 1_000_000_f64;
 
-        diagnostics.add_measurement(Self::FRAMEPACE_FRAMETIME, || frametime_millis);
-        diagnostics.add_measurement(Self::FRAMEPACE_OVERSLEEP, || error_micros);
+        diagnostics.add_measurement(&Self::FRAMEPACE_FRAMETIME, || frametime_millis);
+        diagnostics.add_measurement(&Self::FRAMEPACE_OVERSLEEP, || error_micros);
     }
 }
