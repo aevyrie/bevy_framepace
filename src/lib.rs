@@ -29,7 +29,6 @@
 
 use bevy_app::prelude::*;
 use bevy_ecs::prelude::*;
-use bevy_log::prelude::*;
 use bevy_reflect::prelude::*;
 use bevy_render::{pipelined_rendering::RenderExtractApp, Render, RenderApp, RenderSet};
 use bevy_utils::Instant;
@@ -202,7 +201,7 @@ fn get_display_refresh_rate(
         Limiter::Off => {
             #[cfg(feature = "framepace_debug")]
             if settings.is_changed() {
-                info!("Frame limiter disabled");
+                bevy_log::info!("Frame limiter disabled");
             }
             return;
         }
@@ -211,7 +210,7 @@ fn get_display_refresh_rate(
     if let Ok(mut limit) = frame_limit.0.try_lock() {
         if new_frametime != *limit {
             #[cfg(feature = "framepace_debug")]
-            info!("Frametime limit changed to: {:?}", new_frametime);
+            bevy_log::info!("Frametime limit changed to: {:?}", new_frametime);
             *limit = new_frametime;
         }
     }

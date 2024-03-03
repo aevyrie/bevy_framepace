@@ -35,4 +35,15 @@ bevy = { version = "0.13", default-features = false, features = [
     "bevy_ui",
     "default_font",
     "multi-threaded",
+    "x11",
 ] }
+
+[[example]]
+name = "demo"
+path = "examples/demo.rs"
+required-features = ["default"]
+
+[[example]]
+name = "minimal"
+path = "examples/minimal.rs"
+required-features = ["default"]
