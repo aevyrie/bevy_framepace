@@ -25,7 +25,7 @@ bevy_winit = "0.13"
 spin_sleep = "1.0"
 
 [features]
-default = ["framepace_debug", "bevy/x11"]
+default = ["framepace_debug", "bevy_winit/x11"]
 framepace_debug = []
 
 [dev-dependencies]
