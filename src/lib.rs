@@ -1,4 +1,4 @@
-//! This is a [`bevy`] plugin that adds framepacing and framelimiting to improve input latency and
+//! This is a `bevy` plugin that adds framepacing and framelimiting to improve input latency and
 //! power use.
 //!
 //! # How it works
@@ -27,13 +27,15 @@
 
 #![deny(missing_docs)]
 
+use bevy_app::prelude::*;
+use bevy_ecs::prelude::*;
+use bevy_reflect::prelude::*;
+use bevy_render::{pipelined_rendering::RenderExtractApp, Render, RenderApp, RenderSet};
+use bevy_utils::Instant;
+use bevy_window::prelude::*;
+
 #[cfg(not(target_arch = "wasm32"))]
-use bevy::winit::WinitWindows;
-use bevy::{
-    prelude::*,
-    render::{pipelined_rendering::RenderExtractApp, RenderApp, RenderSet},
-    utils::Instant,
-};
+use bevy_winit::WinitWindows;
 
 use std::{
     sync::{Arc, Mutex},
@@ -78,7 +80,7 @@ impl Plugin for FramepacePlugin {
                 .insert_resource(limit)
                 .insert_resource(stats)
                 .add_systems(
-                    bevy::render::Render,
+                    Render,
                     framerate_limiter
                         .in_set(RenderSet::Cleanup)
                         .after(World::clear_entities),
@@ -199,7 +201,7 @@ fn get_display_refresh_rate(
         Limiter::Off => {
             #[cfg(feature = "framepace_debug")]
             if settings.is_changed() {
-                info!("Frame limiter disabled");
+                bevy_log::info!("Frame limiter disabled");
             }
             return;
         }
@@ -208,7 +210,7 @@ fn get_display_refresh_rate(
     if let Ok(mut limit) = frame_limit.0.try_lock() {
         if new_frametime != *limit {
             #[cfg(feature = "framepace_debug")]
-            info!("Frametime limit changed to: {:?}", new_frametime);
+            bevy_log::info!("Frametime limit changed to: {:?}", new_frametime);
             *limit = new_frametime;
         }
     }
