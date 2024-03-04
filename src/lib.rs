@@ -1,4 +1,4 @@
-//! This is a [`bevy`] plugin that adds framepacing and framelimiting to improve input latency and
+//! This is a `bevy` plugin that adds framepacing and framelimiting to improve input latency and
 //! power use.
 //!
 //! # How it works
