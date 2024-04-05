@@ -30,10 +30,12 @@
 use bevy_app::prelude::*;
 use bevy_ecs::prelude::*;
 use bevy_reflect::prelude::*;
-use bevy_render::{pipelined_rendering::RenderExtractApp, Render, RenderApp, RenderSet};
+use bevy_render::{Render, RenderApp, RenderSet};
 use bevy_utils::Instant;
 use bevy_window::prelude::*;
 
+#[cfg(not(target_arch = "wasm32"))]
+use bevy_render::pipelined_rendering::RenderExtractApp;
 #[cfg(not(target_arch = "wasm32"))]
 use bevy_winit::WinitWindows;
 
@@ -44,6 +46,11 @@ use std::{
 
 #[cfg(feature = "framepace_debug")]
 pub mod debug;
+
+/// A dummy label for the subapp of the rendered pipeline that does not exist in wasm32
+#[cfg(target_arch = "wasm32")]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, bevy_app::AppLabel)]
+struct RenderExtractApp;
 
 /// Adds framepacing and framelimiting functionality to your [`App`].
 #[derive(Debug, Clone, Component)]
