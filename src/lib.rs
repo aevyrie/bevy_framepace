@@ -169,12 +169,11 @@ impl Limiter {
 
 impl std::fmt::Display for Limiter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let output = match self {
-            Limiter::Auto => "Auto".into(),
-            Limiter::Manual(t) => format!("{:.2} fps", 1.0 / t.as_secs_f32()),
-            Limiter::Off => "Off".into(),
-        };
-        write!(f, "{}", output)
+        match self {
+            Limiter::Auto => write!(f, "Auto"),
+            Limiter::Manual(t) => write!(f, "{:.2} fps", 1.0 / t.as_secs_f32()),
+            Limiter::Off => write!(f, "Off"),
+        }
     }
 }
 
