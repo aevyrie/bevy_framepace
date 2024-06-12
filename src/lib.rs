@@ -30,10 +30,13 @@
 use bevy_app::prelude::*;
 use bevy_ecs::prelude::*;
 use bevy_reflect::prelude::*;
-use bevy_render::{pipelined_rendering::RenderExtractApp, Render, RenderApp, RenderSet};
+use bevy_render::{Render, RenderApp, RenderSet};
 use bevy_utils::Instant;
-use bevy_window::prelude::*;
 
+#[cfg(not(target_arch = "wasm32"))]
+use bevy_render::pipelined_rendering::RenderExtractApp;
+#[cfg(not(target_arch = "wasm32"))]
+use bevy_window::prelude::*;
 #[cfg(not(target_arch = "wasm32"))]
 use bevy_winit::WinitWindows;
 
@@ -44,6 +47,12 @@ use std::{
 
 #[cfg(feature = "framepace_debug")]
 pub mod debug;
+
+/// Bevy does not export `RenderExtractApp` on wasm32, so we create a dummy label to ensure this
+/// compiles on wasm32.
+#[cfg(target_arch = "wasm32")]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, bevy_app::AppLabel)]
+struct RenderExtractApp;
 
 /// Adds framepacing and framelimiting functionality to your [`App`].
 #[derive(Debug, Clone, Component)]
@@ -117,6 +126,7 @@ struct FramepaceSettingsProxy {
     limiter: Arc<Mutex<Limiter>>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl FramepaceSettingsProxy {
     fn is_enabled(&self) -> bool {
         self.limiter.try_lock().iter().any(|l| l.is_enabled())
@@ -251,6 +261,7 @@ pub struct FramePaceStats {
 /// `spin_sleep` sleeps as long as possible given the platform's sleep accuracy, and spins for the
 /// remainder. The dependency is however not WASM compatible, which is fine, because frame limiting
 /// should not be used in a browser; this would compete with the browser's frame limiter.
+#[allow(unused_variables)]
 fn framerate_limiter(
     mut timer: ResMut<FrameTimer>,
     target_frametime: Res<FrametimeLimit>,
