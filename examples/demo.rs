@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{color::palettes, prelude::*};
 
 fn main() {
     App::new()
@@ -43,7 +43,7 @@ pub fn update_cursor(windows: Query<&Window>, mut gizmos: Gizmos) {
             pos.x - windows.single().width() / 2.0,
             windows.single().height() / 2.0 - pos.y,
         );
-        gizmos.circle_2d(pos, 10.0, Color::GREEN);
+        gizmos.circle_2d(pos, 10.0, palettes::basic::GREEN);
     }
 }
 

@@ -75,7 +75,7 @@ impl Plugin for FramepacePlugin {
         #[cfg(not(target_arch = "wasm32"))]
         app.add_systems(Update, get_display_refresh_rate);
 
-        if let Ok(sub_app) = app.get_sub_app_mut(RenderExtractApp) {
+        if let Some(sub_app) = app.get_sub_app_mut(RenderExtractApp) {
             sub_app
                 .insert_resource(FrameTimer::default())
                 .insert_resource(settings_proxy)
