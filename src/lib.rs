@@ -34,8 +34,6 @@ use bevy_render::{Render, RenderApp, RenderSet};
 use bevy_utils::Instant;
 
 #[cfg(not(target_arch = "wasm32"))]
-use bevy_render::pipelined_rendering::RenderExtractApp;
-#[cfg(not(target_arch = "wasm32"))]
 use bevy_window::prelude::*;
 #[cfg(not(target_arch = "wasm32"))]
 use bevy_winit::WinitWindows;
@@ -47,12 +45,6 @@ use std::{
 
 #[cfg(feature = "framepace_debug")]
 pub mod debug;
-
-/// Bevy does not export `RenderExtractApp` on wasm32, so we create a dummy label to ensure this
-/// compiles on wasm32.
-#[cfg(target_arch = "wasm32")]
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, bevy_app::AppLabel)]
-struct RenderExtractApp;
 
 /// Adds framepacing and framelimiting functionality to your [`App`].
 #[derive(Debug, Clone, Component)]
@@ -75,26 +67,17 @@ impl Plugin for FramepacePlugin {
         #[cfg(not(target_arch = "wasm32"))]
         app.add_systems(Update, get_display_refresh_rate);
 
-        if let Some(sub_app) = app.get_sub_app_mut(RenderExtractApp) {
-            sub_app
-                .insert_resource(FrameTimer::default())
-                .insert_resource(settings_proxy)
-                .insert_resource(limit)
-                .insert_resource(stats)
-                .add_systems(Main, framerate_limiter);
-        } else {
-            app.sub_app_mut(RenderApp)
-                .insert_resource(FrameTimer::default())
-                .insert_resource(settings_proxy)
-                .insert_resource(limit)
-                .insert_resource(stats)
-                .add_systems(
-                    Render,
-                    framerate_limiter
-                        .in_set(RenderSet::Cleanup)
-                        .after(World::clear_entities),
-                );
-        }
+        app.sub_app_mut(RenderApp)
+            .insert_resource(FrameTimer::default())
+            .insert_resource(settings_proxy)
+            .insert_resource(limit)
+            .insert_resource(stats)
+            .add_systems(
+                Render,
+                framerate_limiter
+                    .in_set(RenderSet::Cleanup)
+                    .after(World::clear_entities),
+            );
     }
 }
 
