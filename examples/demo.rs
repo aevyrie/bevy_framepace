@@ -55,6 +55,7 @@ fn setup(mut commands: Commands, mut windows: Query<&mut Window>) {
             order: 10,
             ..default()
         },
+        tonemapping: bevy::core_pipeline::tonemapping::Tonemapping::None,
         ..default()
     },));
     commands.spawn((Camera3dBundle::default(),));
