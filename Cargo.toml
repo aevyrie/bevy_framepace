@@ -37,6 +37,9 @@ bevy = { version = "0.14.0", default-features = false, features = [
     "default_font",
 ] }
 
+[package.metadata.docs.rs]
+features = ["bevy_winit/x11"]
+
 [[example]]
 name = "demo"
 path = "examples/demo.rs"
