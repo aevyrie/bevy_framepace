@@ -1,6 +1,6 @@
 [package]
 name = "bevy_framepace"
-version = "0.17.0-rc.1"
+version = "0.17.0"
 edition = "2021"
 resolver = "2"
 description = "Frame pacing and frame limiting for Bevy"
@@ -11,25 +11,25 @@ documentation = "https://docs.rs/bevy_framepace"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bevy_app = "0.14.0-rc.4"
-bevy_ecs = "0.14.0-rc.4"
-bevy_diagnostic = "0.14.0-rc.4"
-bevy_log = "0.14.0-rc.4"
-bevy_render = "0.14.0-rc.4"
-bevy_reflect = "0.14.0-rc.4"
-bevy_time = "0.14.0-rc.4"
-bevy_utils = "0.14.0-rc.4"
-bevy_window = "0.14.0-rc.4"
-bevy_winit = "0.14.0-rc.4"
+bevy_app = "0.14.0"
+bevy_ecs = "0.14.0"
+bevy_diagnostic = "0.14.0"
+bevy_log = "0.14.0"
+bevy_render = "0.14.0"
+bevy_reflect = "0.14.0"
+bevy_time = "0.14.0"
+bevy_utils = "0.14.0"
+bevy_window = "0.14.0"
+bevy_winit = "0.14.0"
 # Non-bevy
 spin_sleep = "1.0"
 
 [features]
-default = ["framepace_debug", "bevy_winit/x11"]
+default = ["framepace_debug"]
 framepace_debug = []
 
 [dev-dependencies]
-bevy = "0.14.0-rc.4"
+bevy = "0.14.0"
 
 [[example]]
 name = "demo"
