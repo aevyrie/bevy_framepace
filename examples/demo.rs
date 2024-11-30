@@ -1,4 +1,6 @@
 use bevy::{color::palettes, prelude::*};
+use bevy_window::{SystemCursorIcon, Window};
+use bevy_winit::cursor::CursorIcon;
 
 fn main() {
     App::new()
@@ -31,55 +33,41 @@ fn toggle_plugin(
 }
 
 fn update_ui(
-    mut text: Query<&mut Text, With<EnableText>>,
+    mut text: Single<&mut TextSpan, With<EnableText>>,
     settings: Res<bevy_framepace::FramepaceSettings>,
 ) {
-    text.single_mut().sections[1].value = format!("{}", settings.limiter);
+    text.0 = format!("{}", settings.limiter);
 }
 
-pub fn update_cursor(windows: Query<&Window>, mut gizmos: Gizmos) {
-    if let Some(pos) = windows.single().cursor_position() {
-        let pos = Vec2::new(
-            pos.x - windows.single().width() / 2.0,
-            windows.single().height() / 2.0 - pos.y,
-        );
+pub fn update_cursor(window: Single<&Window>, mut gizmos: Gizmos) {
+    if let Some(pos) = window.cursor_position() {
+        let pos = Vec2::new(pos.x - window.width() / 2.0, window.height() / 2.0 - pos.y);
         gizmos.circle_2d(pos, 10.0, palettes::basic::GREEN);
     }
 }
 
 /// set up the scene
-fn setup(mut commands: Commands, mut windows: Query<&mut Window>) {
-    windows.iter_mut().next().unwrap().cursor.icon = CursorIcon::Crosshair;
-    commands.spawn((Camera2dBundle {
-        camera: Camera {
+fn setup(mut commands: Commands, window: Single<Entity, With<Window>>) {
+    commands
+        .entity(*window)
+        .insert(CursorIcon::System(SystemCursorIcon::Crosshair));
+    commands.spawn((
+        Camera2d,
+        Camera {
             order: 10,
             ..default()
         },
-        tonemapping: bevy::core_pipeline::tonemapping::Tonemapping::None,
-        ..default()
-    },));
-    commands.spawn((Camera3dBundle::default(),));
+    ));
+    commands.spawn(Camera3d::default());
+
     // UI
-    let style = TextStyle {
-        font_size: 60.0,
-        color: Color::WHITE,
+    let text_font = TextFont {
+        font_size: 50.,
         ..default()
     };
-    commands.spawn((
-        TextBundle::from_sections(vec![
-            TextSection {
-                value: "Frame pacing: ".to_string(),
-                style: style.clone(),
-            },
-            TextSection {
-                value: "".to_string(),
-                style: style.clone(),
-            },
-            TextSection {
-                value: "\n[press space]".to_string(),
-                style,
-            },
-        ]),
-        EnableText,
-    ));
+    commands
+        .spawn(Text::default())
+        .with_child((TextSpan::new("Frame pacing: "), text_font.clone()))
+        .with_child((TextSpan::new(""), text_font.clone(), EnableText))
+        .with_child((TextSpan::new("\n[press space]"), text_font));
 }
