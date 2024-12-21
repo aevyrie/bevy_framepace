@@ -31,7 +31,7 @@ impl DiagnosticsPlugin {
         time: Res<Time>,
         stats: Res<crate::FramePaceStats>,
     ) {
-        if time.delta_seconds_f64() == 0.0 {
+        if time.delta_secs_f64() == 0.0 {
             return;
         }
 
