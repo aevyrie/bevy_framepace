@@ -1,6 +1,6 @@
 [package]
 name = "bevy_framepace"
-version = "0.17.0"
+version = "0.18.0"
 edition = "2021"
 resolver = "2"
 description = "Frame pacing and frame limiting for Bevy"
