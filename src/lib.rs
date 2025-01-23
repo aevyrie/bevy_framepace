@@ -162,7 +162,7 @@ impl std::fmt::Display for Limiter {
 
 /// Current frametime limit based on settings and monitor refresh rate.
 #[derive(Debug, Default, Clone, Resource)]
-struct FrametimeLimit(Arc<Mutex<Duration>>);
+pub struct FrametimeLimit(pub Arc<Mutex<Duration>>);
 
 /// Tracks the instant of the end of the previous frame.
 #[derive(Debug, Clone, Resource, Reflect)]
