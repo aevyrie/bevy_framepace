@@ -31,6 +31,7 @@ use bevy_app::prelude::*;
 use bevy_ecs::prelude::*;
 use bevy_reflect::prelude::*;
 use bevy_render::{Render, RenderApp, RenderSet};
+use bevy_platform::time::Instant;
 
 #[cfg(not(target_arch = "wasm32"))]
 use bevy_window::prelude::*;
@@ -39,7 +40,7 @@ use bevy_winit::WinitWindows;
 
 use std::{
     sync::{Arc, Mutex},
-    time::{Duration, Instant},
+    time::{Duration},
 };
 
 #[cfg(feature = "framepace_debug")]
