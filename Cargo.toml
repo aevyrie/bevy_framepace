@@ -1,6 +1,6 @@
 [package]
 name = "bevy_framepace"
-version = "0.18.1"
+version = "0.19.0"
 edition = "2021"
 resolver = "2"
 description = "Frame pacing and frame limiting for Bevy"
@@ -11,16 +11,16 @@ documentation = "https://docs.rs/bevy_framepace"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bevy_app = { version = "0.15.0", default-features = false }
-bevy_ecs = { version = "0.15.0", default-features = false }
-bevy_diagnostic = { version = "0.15.0", default-features = false }
-bevy_log = { version = "0.15.0", default-features = false }
-bevy_render = { version = "0.15.0", default-features = false }
-bevy_reflect = { version = "0.15.0", default-features = false }
-bevy_time = { version = "0.15.0", default-features = false }
-bevy_utils = { version = "0.15.0", default-features = false }
-bevy_window = { version = "0.15.0", default-features = false }
-bevy_winit = { version = "0.15.0", default-features = false }
+bevy_app = { version = "0.16.0", default-features = false }
+bevy_ecs = { version = "0.16.0", default-features = false }
+bevy_diagnostic = { version = "0.16.0", default-features = false }
+bevy_log = { version = "0.16.0", default-features = false }
+bevy_render = { version = "0.16.0", default-features = false }
+bevy_reflect = { version = "0.16.0", default-features = false }
+bevy_time = { version = "0.16.0", default-features = false }
+bevy_platform = { version = "0.16.0", default-features = false }
+bevy_window = { version = "0.16.0", default-features = false }
+bevy_winit = { version = "0.16.0", default-features = false }
 # Non-bevy
 spin_sleep = "1.0"
 
@@ -29,7 +29,7 @@ default = ["framepace_debug"]
 framepace_debug = []
 
 [dev-dependencies]
-bevy = { version = "0.15.0", default-features = false, features = [
+bevy = { version = "0.16.0-rc.3", default-features = false, features = [
     "bevy_color",
     "bevy_ui",
     "bevy_gizmos",
