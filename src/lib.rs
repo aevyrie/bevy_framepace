@@ -31,12 +31,12 @@ use bevy_app::prelude::*;
 use bevy_ecs::prelude::*;
 use bevy_platform::time::Instant;
 use bevy_reflect::prelude::*;
-use bevy_render::{Render, RenderApp, RenderSet};
+use bevy_render::{Render, RenderApp, RenderSystems};
 
 #[cfg(not(target_arch = "wasm32"))]
 use bevy_window::prelude::*;
 #[cfg(not(target_arch = "wasm32"))]
-use bevy_winit::WinitWindows;
+use bevy_winit::WINIT_WINDOWS;
 
 use std::{
     sync::{Arc, Mutex},
@@ -75,7 +75,7 @@ impl Plugin for FramepacePlugin {
             .add_systems(
                 Render,
                 framerate_limiter
-                    .in_set(RenderSet::Cleanup)
+                    .in_set(RenderSystems::Cleanup)
                     .after(World::clear_entities),
             );
     }
@@ -117,10 +117,10 @@ impl FramepaceSettingsProxy {
 }
 
 fn update_proxy_resources(settings: Res<FramepaceSettings>, proxy: Res<FramepaceSettingsProxy>) {
-    if settings.is_changed() {
-        if let Ok(mut limiter) = proxy.limiter.try_lock() {
-            *limiter = settings.limiter.clone();
-        }
+    if settings.is_changed()
+        && let Ok(mut limiter) = proxy.limiter.try_lock()
+    {
+        *limiter = settings.limiter.clone();
     }
 }
 
@@ -180,12 +180,11 @@ impl Default for FrameTimer {
 #[cfg(not(target_arch = "wasm32"))]
 fn get_display_refresh_rate(
     settings: Res<FramepaceSettings>,
-    winit: NonSend<WinitWindows>,
     windows: Query<Entity, With<Window>>,
     frame_limit: Res<FrametimeLimit>,
 ) {
     let new_frametime = match settings.limiter {
-        Limiter::Auto => match detect_frametime(winit, windows.iter()) {
+        Limiter::Auto => match detect_frametime(windows.iter()) {
             Some(frametime) => frametime,
             None => return,
         },
@@ -199,25 +198,27 @@ fn get_display_refresh_rate(
         }
     };
 
-    if let Ok(mut limit) = frame_limit.0.try_lock() {
-        if new_frametime != *limit {
-            #[cfg(feature = "framepace_debug")]
-            bevy_log::info!("Frametime limit changed to: {:?}", new_frametime);
-            *limit = new_frametime;
-        }
+    if let Ok(mut limit) = frame_limit.0.try_lock()
+        && new_frametime != *limit
+    {
+        #[cfg(feature = "framepace_debug")]
+        bevy_log::info!("Frametime limit changed to: {:?}", new_frametime);
+        *limit = new_frametime;
     }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn detect_frametime(
-    winit: NonSend<WinitWindows>,
-    windows: impl Iterator<Item = Entity>,
-) -> Option<Duration> {
+fn detect_frametime(windows: impl Iterator<Item = Entity>) -> Option<Duration> {
     let best_framerate = {
         windows
-            .filter_map(|e| winit.get_window(e))
-            .filter_map(|w| w.current_monitor())
-            .filter_map(|monitor| monitor.refresh_rate_millihertz())
+            .filter_map(|e| {
+                WINIT_WINDOWS.with_borrow(|winit| {
+                    winit
+                        .get_window(e)?
+                        .current_monitor()?
+                        .refresh_rate_millihertz()
+                })
+            })
             .min()? as f64
             / 1000.0
             - 0.5 // Winit only provides integer refresh rate values. We need to round down to handle the worst case scenario of a rounded refresh rate.
