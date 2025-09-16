@@ -1,6 +1,5 @@
 use bevy::{color::palettes, prelude::*};
-use bevy_window::{SystemCursorIcon, Window};
-use bevy_winit::cursor::CursorIcon;
+use bevy_window::{CursorIcon, SystemCursorIcon, Window};
 
 fn main() {
     App::new()
