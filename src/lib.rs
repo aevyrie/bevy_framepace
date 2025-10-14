@@ -51,8 +51,6 @@ pub mod debug;
 pub struct FramepacePlugin;
 impl Plugin for FramepacePlugin {
     fn build(&self, app: &mut App) {
-        app.register_type::<FramepaceSettings>();
-
         let limit = FrametimeLimit::default();
         let settings = FramepaceSettings::default();
         let settings_proxy = FramepaceSettingsProxy::default();
