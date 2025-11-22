@@ -37,8 +37,6 @@ use bevy_render::{Render, RenderApp, RenderSystems};
 use bevy_window::prelude::*;
 #[cfg(not(target_arch = "wasm32"))]
 use bevy_winit::WINIT_WINDOWS;
-#[cfg(not(target_arch = "wasm32"))]
-use std::cell::Cell;
 
 use std::{
     sync::{Arc, Mutex},
@@ -67,8 +65,7 @@ impl Plugin for FramepacePlugin {
             .add_systems(Update, update_proxy_resources);
 
         #[cfg(not(target_arch = "wasm32"))]
-        app.insert_non_send_resource(MainThreadToken(Cell::new(())))
-            .add_systems(Update, get_display_refresh_rate);
+        app.add_systems(Update, get_display_refresh_rate);
 
         app.sub_app_mut(RenderApp)
             .insert_resource(FrameTimer::default())
@@ -185,7 +182,7 @@ fn get_display_refresh_rate(
     settings: Res<FramepaceSettings>,
     windows: Query<Entity, With<Window>>,
     frame_limit: Res<FrametimeLimit>,
-    _token: NonSend<MainThreadToken>,
+    _token: Option<NonSend<()>>, // The NonSend token ensures that this system runs on the Bevy main thread.
 ) {
     let new_frametime = match settings.limiter {
         Limiter::Auto => match detect_frametime(windows.iter()) {
@@ -216,7 +213,8 @@ fn detect_frametime(windows: impl Iterator<Item = Entity>) -> Option<Duration> {
     let best_framerate = {
         windows
             .filter_map(|e| {
-                WINIT_WINDOWS.with_borrow(|winit| { // WINIT_WINDOWS.with_borrow must be called from bevy main thread.
+                // WINIT_WINDOWS.with_borrow must be called from bevy main thread.
+                WINIT_WINDOWS.with_borrow(|winit| {
                     winit
                         .get_window(e)?
                         .current_monitor()?
@@ -281,7 +279,3 @@ fn framerate_limiter(
         }
     };
 }
-
-/// Can be accessed by a system to ensure that it runs on the bevy main thread
-#[cfg(not(target_arch = "wasm32"))]
-struct MainThreadToken(Cell<()>);
