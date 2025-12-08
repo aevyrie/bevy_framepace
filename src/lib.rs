@@ -33,11 +33,11 @@ use bevy_platform::time::Instant;
 use bevy_reflect::prelude::*;
 use bevy_render::{Render, RenderApp, RenderSystems};
 
+use bevy_ecs::system::NonSendMarker;
 use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
-use bevy_ecs::system::NonSendMarker;
 
 #[cfg(feature = "framepace_debug")]
 pub mod debug;
