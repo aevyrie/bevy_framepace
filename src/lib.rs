@@ -34,6 +34,8 @@ use bevy_reflect::prelude::*;
 use bevy_render::{Render, RenderApp, RenderSystems};
 
 #[cfg(not(target_arch = "wasm32"))]
+use bevy_ecs::system::NonSendMarker;
+#[cfg(not(target_arch = "wasm32"))]
 use bevy_window::prelude::*;
 #[cfg(not(target_arch = "wasm32"))]
 use bevy_winit::WINIT_WINDOWS;
@@ -182,6 +184,7 @@ fn get_display_refresh_rate(
     settings: Res<FramepaceSettings>,
     windows: Query<Entity, With<Window>>,
     frame_limit: Res<FrametimeLimit>,
+    _non_send_marker: NonSendMarker, // This system may call WINIT_WINDOWS.with_borrow indirectly which requires the system runs on the Bevy main thread.
 ) {
     let new_frametime = match settings.limiter {
         Limiter::Auto => match detect_frametime(windows.iter()) {
@@ -212,6 +215,7 @@ fn detect_frametime(windows: impl Iterator<Item = Entity>) -> Option<Duration> {
     let best_framerate = {
         windows
             .filter_map(|e| {
+                // WINIT_WINDOWS.with_borrow must be called from bevy main thread.
                 WINIT_WINDOWS.with_borrow(|winit| {
                     winit
                         .get_window(e)?
