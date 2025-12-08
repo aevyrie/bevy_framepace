@@ -33,13 +33,7 @@ use bevy_platform::time::Instant;
 use bevy_reflect::prelude::*;
 use bevy_render::{Render, RenderApp, RenderSystems};
 
-#[cfg(not(target_arch = "wasm32"))]
 use bevy_ecs::system::NonSendMarker;
-#[cfg(not(target_arch = "wasm32"))]
-use bevy_window::prelude::*;
-#[cfg(not(target_arch = "wasm32"))]
-use bevy_winit::WINIT_WINDOWS;
-
 use std::{
     sync::{Arc, Mutex},
     time::Duration,
@@ -48,7 +42,7 @@ use std::{
 #[cfg(feature = "framepace_debug")]
 pub mod debug;
 
-/// Adds framepacing and framelimiting functionality to your [`App`].
+/// Adds frame-pacing and frame-limiting functionality to your [`App`].
 #[derive(Debug, Clone, Component)]
 pub struct FramepacePlugin;
 impl Plugin for FramepacePlugin {
@@ -182,12 +176,12 @@ impl Default for FrameTimer {
 #[cfg(not(target_arch = "wasm32"))]
 fn get_display_refresh_rate(
     settings: Res<FramepaceSettings>,
-    windows: Query<Entity, With<Window>>,
+    windows: Query<Entity, With<bevy_window::Window>>,
     frame_limit: Res<FrametimeLimit>,
-    _non_send_marker: NonSendMarker, // This system may call WINIT_WINDOWS.with_borrow indirectly which requires the system runs on the Bevy main thread.
+    non_send: NonSendMarker,
 ) {
     let new_frametime = match settings.limiter {
-        Limiter::Auto => match detect_frametime(windows.iter()) {
+        Limiter::Auto => match detect_frametime(windows.iter(), non_send) {
             Some(frametime) => frametime,
             None => return,
         },
@@ -210,13 +204,14 @@ fn get_display_refresh_rate(
     }
 }
 
+/// Autodetect frame time using winit. Must be called from the main thread, use NonSendMarker in the
+/// calling system to ensure this.
 #[cfg(not(target_arch = "wasm32"))]
-fn detect_frametime(windows: impl Iterator<Item = Entity>) -> Option<Duration> {
+fn detect_frametime(windows: impl Iterator<Item = Entity>, _: NonSendMarker) -> Option<Duration> {
     let best_framerate = {
         windows
             .filter_map(|e| {
-                // WINIT_WINDOWS.with_borrow must be called from bevy main thread.
-                WINIT_WINDOWS.with_borrow(|winit| {
+                bevy_winit::WINIT_WINDOWS.with_borrow(|winit| {
                     winit
                         .get_window(e)?
                         .current_monitor()?
