@@ -6,7 +6,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/bevy_framepace)](https://crates.io/crates/bevy_framepace)
 [![docs.rs](https://docs.rs/bevy_framepace/badge.svg)](https://docs.rs/bevy_framepace)
-[![CI](https://github.com/aevyrie/bevy_framepace/workflows/CI/badge.svg?branch=main)](https://github.com/aevyrie/bevy_framepace/actions?query=workflow%3A%22CI%22+branch%3Amain)
+[![CI](https://github.com/aevyrie/bevy_framepace/actions/workflows/rust.yml/badge.svg)](https://github.com/aevyrie/bevy_framepace/actions/workflows/rust.yml)
 [![Bevy](https://img.shields.io/badge/Bevy%20tracking-main-lightblue)](https://github.com/bevyengine/bevy/blob/main/docs/plugins_guidelines.md#main-branch-tracking)
 
 <video src = "https://user-images.githubusercontent.com/2632925/211992979-1892195b-b98f-424e-ae91-3fc4d6924b5e.mp4"></video>
@@ -84,3 +84,4 @@ the de-facto standard in the Rust ecosystem and there are very good reasons to i
 Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the
 work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any
 additional terms or conditions.
+
