@@ -51,7 +51,8 @@ library is not accurate enough for this application, especially on Windows.
 I intend to track the `main` branch of Bevy. PRs supporting this are welcome!
 
 | bevy | bevy_framepace            |
-| ---- | -------------------       |
+|------|---------------------------|
+| 0.18 | 0.21                      |
 | 0.17 | 0.20                      |
 | 0.16 | 0.19                      |
 | 0.15 | 0.18                      |
