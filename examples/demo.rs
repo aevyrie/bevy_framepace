@@ -61,7 +61,7 @@ fn setup(mut commands: Commands, window: Single<Entity, With<Window>>) {
 
     // UI
     let text_font = TextFont {
-        font_size: 50.,
+        font_size: FontSize::Px(50.),
         ..default()
     };
     commands
