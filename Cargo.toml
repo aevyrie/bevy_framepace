@@ -37,6 +37,7 @@ bevy = { version = "0.19", default-features = false, features = [
     "bevy_color",
     "bevy_ui_render",
     "bevy_gizmos",
+    "bevy_gizmos_render",
     "bevy_winit",
     "bevy_window",
     "default_font",
