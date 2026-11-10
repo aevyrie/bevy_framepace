@@ -108,15 +108,13 @@ struct FramepaceSettingsProxy {
 #[cfg(not(target_arch = "wasm32"))]
 impl FramepaceSettingsProxy {
     fn is_enabled(&self) -> bool {
-        self.limiter.try_lock().iter().any(|l| l.is_enabled())
+        read(&self.limiter).is_enabled()
     }
 }
 
 fn update_proxy_resources(settings: Res<FramepaceSettings>, proxy: Res<FramepaceSettingsProxy>) {
-    if settings.is_changed()
-        && let Ok(mut limiter) = proxy.limiter.try_lock()
-    {
-        *limiter = settings.limiter.clone();
+    if settings.is_changed() {
+        write(&proxy.limiter, settings.limiter.clone());
     }
 }
 
@@ -195,12 +193,10 @@ fn get_display_refresh_rate(
         }
     };
 
-    if let Ok(mut limit) = frame_limit.0.try_lock()
-        && new_frametime != *limit
-    {
+    if read(&frame_limit.0) != new_frametime {
         #[cfg(feature = "framepace_debug")]
         bevy_log::info!("Frametime limit changed to: {:?}", new_frametime);
-        *limit = new_frametime;
+        write(&frame_limit.0, new_frametime);
     }
 }
 
@@ -234,15 +230,49 @@ pub struct FramePaceStats {
     oversleep: Arc<Mutex<Duration>>,
 }
 
-/// Accurately sleeps until it's time to start the next frame.
+/// Reads a value shared with another thread. A panic on the other thread does not make the value
+/// invalid, so a poisoned lock is read anyway.
+fn read<T: Clone>(shared: &Mutex<T>) -> T {
+    shared
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone()
+}
+
+fn write<T>(shared: &Mutex<T>, value: T) {
+    *shared
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = value;
+}
+
+/// The time before a deadline that [`sleep_until`] spins for instead of sleeping.
+#[cfg(not(target_arch = "wasm32"))]
+const SPIN_TIME: Duration = Duration::from_micros(200);
+
+/// Waits until `deadline`, to within a few microseconds.
 ///
-/// The `spin_sleep` dependency makes it possible to get extremely accurate sleep times across
-/// platforms. Using `std::thread::sleep()` will not be precise enough, especially windows. Using a
-/// spin lock, even with `std::hint::spin_loop()`, will result in significant power usage.
+/// Some platforms let a thread sleep longer than it asked, by up to a share of the time asked for;
+/// on macOS a sleep can run half as long again. So this sleeps for a quarter of the time left,
+/// checks the clock, and repeats, then spins through the last [`SPIN_TIME`].
+#[cfg(not(target_arch = "wasm32"))]
+fn sleep_until(deadline: Instant) {
+    loop {
+        let left = deadline.saturating_duration_since(Instant::now());
+        if left <= SPIN_TIME {
+            break;
+        }
+        std::thread::sleep((left - SPIN_TIME) / 4);
+    }
+    while Instant::now() < deadline {
+        std::hint::spin_loop();
+    }
+}
+
+/// Waits until the frame limit has passed since the end of the previous frame.
 ///
-/// `spin_sleep` sleeps as long as possible given the platform's sleep accuracy, and spins for the
-/// remainder. The dependency is however not WASM compatible, which is fine, because frame limiting
-/// should not be used in a browser; this would compete with the browser's frame limiter.
+/// A frame that already took longer than the limit does not wait, and the next frame is measured
+/// from its end, so the time lost is not made up with a short frame. Frame limiting should not be
+/// used in a browser, which limits frames itself.
 #[allow(unused_variables)]
 fn framerate_limiter(
     mut timer: ResMut<FrameTimer>,
@@ -250,29 +280,88 @@ fn framerate_limiter(
     stats: Res<FramePaceStats>,
     settings: Res<FramepaceSettingsProxy>,
 ) {
-    if let Ok(limit) = target_frametime.0.try_lock() {
-        let frame_time = timer.sleep_end.elapsed();
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            let oversleep = stats
-                .oversleep
-                .try_lock()
-                .as_deref()
-                .cloned()
-                .unwrap_or_default();
-            let sleep_time = limit.saturating_sub(frame_time + oversleep);
-            if settings.is_enabled() {
-                spin_sleep::sleep(sleep_time);
+    let limit = read(&target_frametime.0);
+    let frame_time = timer.sleep_end.elapsed();
+    let deadline = timer.sleep_end + limit;
+    #[cfg(not(target_arch = "wasm32"))]
+    if settings.is_enabled() {
+        sleep_until(deadline);
+    }
+    let sleep_end = Instant::now();
+    timer.sleep_end = sleep_end;
+    write(&stats.frametime, frame_time);
+    write(
+        &stats.oversleep,
+        sleep_end.saturating_duration_since(deadline),
+    );
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::*;
+    use bevy_ecs::system::RunSystemOnce;
+
+    fn ms(millis: u64) -> Duration {
+        Duration::from_millis(millis)
+    }
+
+    /// Runs one frame per entry of `work`, each spending that long before the limiter runs, and
+    /// returns the time from the end of each frame's limiter to the end of the next one's.
+    fn frame_times(limit: Duration, work: &[Duration]) -> Vec<Duration> {
+        let mut world = World::new();
+        world.insert_resource(FrameTimer::default());
+        world.insert_resource(FrametimeLimit(Arc::new(Mutex::new(limit))));
+        world.insert_resource(FramePaceStats::default());
+        world.insert_resource(FramepaceSettingsProxy {
+            limiter: Arc::new(Mutex::new(Limiter::Manual(limit))),
+        });
+        world.run_system_once(framerate_limiter).unwrap();
+        let mut last = Instant::now();
+        work.iter()
+            .map(|work| {
+                std::thread::sleep(*work);
+                world.run_system_once(framerate_limiter).unwrap();
+                let now = Instant::now();
+                let frame = now - last;
+                last = now;
+                frame
+            })
+            .collect()
+    }
+
+    // On macOS a thread sleep runs up to half as long again as it asked, which a short spin at the
+    // end cannot make up, so every limited frame ran long.
+    #[test]
+    fn a_wait_ends_within_a_millisecond_of_its_deadline() {
+        for request in [1, 3, 6, 10, 14, 33] {
+            for _ in 0..10 {
+                let deadline = Instant::now() + ms(request);
+                sleep_until(deadline);
+                let late = Instant::now() - deadline;
+                assert!(
+                    late < ms(1),
+                    "a {request} ms wait ended {late:?} after its deadline"
+                );
             }
         }
+    }
 
-        let frame_time_total = timer.sleep_end.elapsed();
-        timer.sleep_end = Instant::now();
-        if let Ok(mut frametime) = stats.frametime.try_lock() {
-            *frametime = frame_time;
+    // A frame that ran long, from a slow sleep or a wait for the display, made the limiter cut the
+    // next frame's sleep by the whole overrun, so limited frames alternated long and short.
+    #[test]
+    fn a_long_frame_is_not_followed_by_a_short_one() {
+        let limit = ms(16);
+        let mut work = vec![ms(2); 12];
+        work[5] = ms(24);
+        let frames = frame_times(limit, &work);
+        for (index, frame) in frames.iter().enumerate().skip(1) {
+            if index == 5 {
+                continue;
+            }
+            assert!(
+                *frame >= limit - ms(1) && *frame <= limit + ms(1),
+                "frame {index} took {frame:?} against a limit of {limit:?}: {frames:?}"
+            );
         }
-        if let Ok(mut oversleep) = stats.oversleep.try_lock() {
-            *oversleep = frame_time_total.saturating_sub(*limit);
-        }
-    };
+    }
 }
