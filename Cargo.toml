@@ -21,8 +21,6 @@ bevy_time = { version = "0.20", default-features = false }
 bevy_platform = { version = "0.20", default-features = false }
 bevy_window = { version = "0.20", default-features = false }
 bevy_winit = { version = "0.20", default-features = false }
-# Non-bevy
-spin_sleep = "1.0"
 
 # Winit will explode in docs.rs otherwise
 [package.metadata.docs.rs]
