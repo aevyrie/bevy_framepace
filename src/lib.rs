@@ -112,11 +112,21 @@ impl FramepaceSettingsProxy {
     }
 }
 
-fn update_proxy_resources(settings: Res<FramepaceSettings>, proxy: Res<FramepaceSettingsProxy>) {
-    if settings.is_changed()
-        && let Ok(mut limiter) = proxy.limiter.try_lock()
-    {
-        *limiter = settings.limiter.clone();
+fn update_proxy_resources(
+    settings: Res<FramepaceSettings>,
+    proxy: Res<FramepaceSettingsProxy>,
+    mut pending_limiter: Local<Option<Limiter>>,
+) {
+    if settings.is_changed() {
+        *pending_limiter = Some(settings.limiter.clone());
+    }
+
+    if let Some(limiter) = pending_limiter.take() {
+        if let Ok(mut current) = proxy.limiter.try_lock() {
+            *current = limiter;
+        } else {
+            *pending_limiter = Some(limiter);
+        }
     }
 }
 
@@ -275,4 +285,34 @@ fn framerate_limiter(
             *oversleep = frame_time_total.saturating_sub(*limit);
         }
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy_ecs::{schedule::Schedule, world::World};
+
+    #[test]
+    fn settings_update_is_retried_after_proxy_lock_contention() {
+        let mut world = World::new();
+        let proxy = FramepaceSettingsProxy::default();
+        world.insert_resource(FramepaceSettings::default());
+        world.insert_resource(proxy.clone());
+
+        let mut schedule = Schedule::default();
+        schedule.add_systems(update_proxy_resources);
+        schedule.run(&mut world);
+
+        let requested = Duration::from_millis(16);
+        world.resource_mut::<FramepaceSettings>().limiter = Limiter::Manual(requested);
+        let held = proxy.limiter.lock().unwrap();
+        schedule.run(&mut world);
+        drop(held);
+        schedule.run(&mut world);
+
+        assert!(matches!(
+            *proxy.limiter.lock().unwrap(),
+            Limiter::Manual(actual) if actual == requested
+        ));
+    }
 }
